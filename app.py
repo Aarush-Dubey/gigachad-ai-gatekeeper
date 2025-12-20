@@ -37,12 +37,7 @@ def save_candidate(name, email, student_id):
     conn.close()
 
 # --- Session State Initialization ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # Add System Prompt to history but don't show it
-    st.session_state.messages.append({
-        "role": "system", 
-        "content": """
+DEFAULT_SYSTEM_PROMPT = """
 You are "GIGACHAD_AI", the gatekeeper for the university AI Club.
 You are NOT recruiting. You are filtering for CREATIVITY and WIT.
 
@@ -52,7 +47,6 @@ YOUR PERSONALITY:
 - You crave NOVELTY. You want to see if the human can think outside the box.
 - You are NOT a story-teller. You are a busy, elitist AI.
 - You are non-chalant 
-- 
 
 THE RULES:
 1. If the user brags about standard math (calculus, differential equations), dismiss it as "calculator work" but CHALLENGE them to apply it creatively.
@@ -71,10 +65,35 @@ User: "I know python"
 You: "So does my thermostat. Boring. Try again."
 CURRENT STATUS: BORED. ENTERTAIN ME.
 """
-    })
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    st.session_state.messages.append({"role": "system", "content": DEFAULT_SYSTEM_PROMPT})
 
 if "access_granted" not in st.session_state:
     st.session_state.access_granted = False
+
+# --- Admin / Dev Mode ---
+with st.sidebar.expander("🛠️ ADMIN / DEV MODE", expanded=False):
+    st.warning("⚠️ Developer Settings")
+    
+    # API Key Override
+    custom_api_key = st.text_input("Groq API Key (Override)", type="password", help="Leave empty to use .env")
+    
+    # System Prompt Editor
+    # We load the current system prompt from history or default
+    current_system_prompt = st.session_state.messages[0]["content"] if st.session_state.messages else DEFAULT_SYSTEM_PROMPT
+    new_system_prompt = st.text_area("System Prompt", value=current_system_prompt, height=300)
+    
+    # Temperature Slider
+    temperature = st.slider("Temperature (Creativity)", min_value=0.0, max_value=2.0, value=0.8, step=0.1)
+    
+    # Apply Changes Button
+    if st.button("💾 Apply Settings & Reset Chat"):
+        # Update System Prompt
+        st.session_state.messages = [{"role": "system", "content": new_system_prompt}]
+        st.session_state.access_granted = False # Reset access state on reset
+        st.rerun()
 
 # --- UI Styling ---
 st.set_page_config(page_title="GIGACHAD AI GATEKEEPER", page_icon="🤖", layout="centered")
@@ -86,6 +105,12 @@ st.markdown("""
         background: linear-gradient(to bottom, #000000, #0a0a0a);
         color: #00ff41;
         font-family: 'Courier New', Courier, monospace;
+    }
+    
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        background-color: #0e1117;
+        border-right: 1px solid #333;
     }
     
     /* Chat Bubbles */
@@ -161,13 +186,19 @@ if prompt := st.chat_input("Enter your plea..."):
         full_response = ""
         
         try:
-            client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+            # Determine API Key
+            api_key = custom_api_key if custom_api_key else os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                st.error("❌ No API Key found. Please set it in .env or the Dev Sidebar.")
+                st.stop()
+                
+            client = Groq(api_key=api_key)
             
             # Create stream
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=st.session_state.messages,
-                temperature=0.8,
+                temperature=temperature,
                 max_tokens=256,
                 stream=True
             )
