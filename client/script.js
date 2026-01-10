@@ -110,27 +110,56 @@ loginBtn.addEventListener('click', () => {
         });
 });
 
+// --- Global Auth Listener (Fixes Reload Issue) ---
+// This runs AUTOMATICALLY on load if user is logged in
+firebase.auth().onAuthStateChanged((user) => {
+    const loginSection = document.getElementById('login-section');
+    if (user) {
+        // User is logged in
+        user.getIdToken().then(token => {
+            currentUserToken = token;
+            loginSection.style.display = 'none'; // Ensure Login is hidden
+
+            // Check submission status
+            if (localStorage.getItem('GIGACHAD_ACCESS') === 'true') {
+                triggerSuccess();
+            } else {
+                // Trigger Void if we are just starting
+                // Check if the Void is visible. If it's effectively "hidden" (opacity 0 or display none), don't show it again to be annoying?
+                // No, let's show it on reload for effect. 
+                document.getElementById('void-overlay').style.display = 'flex';
+            }
+        });
+    } else {
+        // User is NOT logged in
+        loginSection.style.display = 'flex'; // Show Login and Identity Header
+        document.getElementById('void-overlay').style.display = 'none'; // No Void for strangers
+    }
+});
+
 // --- Cinematic Logic ---
 function enterTheVoid() {
     const overlay = document.getElementById('void-overlay');
-    overlay.style.opacity = '0'; // Fade out
+    overlay.style.opacity = '0';
 
     setTimeout(() => {
         overlay.style.display = 'none';
 
-        // Show Chat Interface
-        appContainer.style.display = 'flex';
+        // CRITICAL: Ensure Login is GONE and Chat is SHOWN
+        document.getElementById('login-section').style.display = 'none';
+        appContainer.style.display = 'flex'; // Reveal Chat
+
         appContainer.style.opacity = '0';
         setTimeout(() => appContainer.style.opacity = '1', 100);
 
-        // First message
+        // First message logic...
         if (messages.length === 0) {
             const user = firebase.auth().currentUser;
             const name = user ? user.displayName.split(" ")[0] : "User";
-            appendMessage('ai', `Welcome, ${name}. Proove your worth.`);
-            messages.push({ "role": "assistant", "content": `Welcome, ${name}. Proove your worth.` });
+            appendMessage('ai', `Welcome, ${name}. Prove your worth.`);
+            messages.push({ "role": "assistant", "content": `Welcome, ${name}. Prove your worth.` });
         }
-    }, 1500); // Wait for fade
+    }, 1500);
 }
 
 function openInfo() { document.getElementById('info-modal').style.display = 'flex'; }
