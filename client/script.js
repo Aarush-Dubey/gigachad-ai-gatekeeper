@@ -263,6 +263,7 @@ function triggerSuccess() {
 
     const overlay = document.getElementById('success-overlay');
     overlay.style.display = 'flex';
+    overlay.style.visibility = 'visible';
     document.getElementById('submission-form').style.display = 'block';
 
     // Update User Info

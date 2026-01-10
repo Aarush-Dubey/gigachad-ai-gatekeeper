@@ -596,7 +596,8 @@ button:hover {
 /* Success Form Overlay */
 #success-overlay {
     display: none;
-    /* Hidden by default */
+    visibility: hidden;
+    /* Hidden by default - JS sets to visible when needed*/
     position: fixed;
     top: 0;
     left: 0;
