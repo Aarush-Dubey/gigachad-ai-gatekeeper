@@ -1,6 +1,7 @@
 import os
 import datetime
 import threading
+import json
 import gspread
 from google.oauth2.service_account import Credentials
 from typing import Dict, Optional, List, Any
@@ -24,22 +25,28 @@ class DatabaseManager:
         self._init_firebase()
     
     def _init_firebase(self):
-        """Init Firebase Admin via Service Account."""
+        """Init Firebase Admin via Service Account (File or Env Var)."""
         try:
-            # Check if app is already initialized to avoid ValueError on reload
             if not firebase_admin._apps:
+                # 1. Try File
                 if os.path.exists(FIREBASE_CREDS_FILE):
                     cred = credentials.Certificate(FIREBASE_CREDS_FILE)
                     firebase_admin.initialize_app(cred)
+                # 2. Try Env Var (JSON content) - Best for Render
+                elif os.environ.get("FIREBASE_CREDENTIALS_JSON"):
+                    cred_dict = json.loads(os.environ.get("FIREBASE_CREDENTIALS_JSON"))
+                    cred = credentials.Certificate(cred_dict)
+                    firebase_admin.initialize_app(cred)
                 else:
-                    # Fallback: Try using standard Google Application Credentials or default env
-                    # This often works if you export GOOGLE_APPLICATION_CREDENTIALS=path/to/key.json
-                    app = firebase_admin.initialize_app()
+                    # 3. Fallback to ADC
+                    logger.warning(f"No credentials file ({FIREBASE_CREDS_FILE}) or env var found. Trying default...")
+                    firebase_admin.initialize_app()
             
             self.db = firestore.client()
             logger.info("Firebase Firestore Initialized.")
         except Exception as e:
             logger.critical(f"Firebase Init Failed: {e}")
+            # Do not raise, allow app to start even if DB is broken (Partial Failure Mode)
             self.db = None
 
     def _get_google_sheet(self):

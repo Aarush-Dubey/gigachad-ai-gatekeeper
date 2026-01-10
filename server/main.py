@@ -176,6 +176,41 @@ def view_logs(secret: str):
     except Exception as e:
         return Response(f"Error reading logs: {e}", media_type="text/plain")
 
+@app.get("/", response_class=Response)
+def root_status():
+    """
+    Public Status Dashboard (The Matrix Style)
+    """
+    status_html = f"""
+    <html>
+    <head>
+        <title>GIGACHAD GATEKEEPER | SYSTEM STATUS</title>
+        <style>
+            body {{ background-color: #0d1117; color: #00ff00; font-family: monospace; padding: 40px; }}
+            h1 {{ border-bottom: 2px solid #00ff00; padding-bottom: 10px; }}
+            .status-item {{ margin: 15px 0; font-size: 1.2rem; }}
+            .ok {{ color: #00ff00; }}
+            .warn {{ color: #ffaa00; }}
+            .err {{ color: #ff0000; }}
+            .grid {{ display: grid; grid-template-columns: 200px 1fr; gap: 10px; }}
+        </style>
+    </head>
+    <body>
+        <h1>SYSTEM DIAGNOSTICS_</h1>
+        <div class="grid">
+            <div>CORE SYSTEM:</div>      <div class="ok">[ONLINE]</div>
+            <div>AI MODEL:</div>        <div class="ok">[{MODEL_NAME}]</div>
+            <div>EMERGENCY MODE:</div>  <div class="{ 'err' if EMERGENCY_MODE else 'ok' }">[{ 'ACTIVE (BYPASS)' if EMERGENCY_MODE else 'STANDBY' }]</div>
+            <div>FIREBASE:</div>        <div class="ok">[CONNECTED]</div>
+            <div>SERVER TIME:</div>     <div>[{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC]</div>
+        </div>
+        <br>
+        <p><i>"I am the one who knocks."</i></p>
+    </body>
+    </html>
+    """
+    return Response(content=status_html, media_type="text/html")
+
 @app.get("/config")
 def get_config(request: Request):
     """
