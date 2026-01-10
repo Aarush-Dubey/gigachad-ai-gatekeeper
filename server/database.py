@@ -73,41 +73,69 @@ class DatabaseManager:
         except:
             return False
 
-    def save_candidate_authenticated(self, user_data: dict, verified_email: str, chat_history: List[Dict]) -> bool:
+    def save_candidate_authenticated(self, user_data: dict, verified_email: str, chat_history: List[Dict], uid: str = None) -> bool:
         """
-        Saves candidate + chat history.
+        Saves candidate submission data directly into the user's profile.
+        Everything in one place: users/{uid}
         """
         if not self.db:
             logger.critical("Firestore not initialized.")
             return False
             
-        # Domain Check (Double Security) - redundant if guarded in main but good practice
+        # Domain Check
         if not verified_email.endswith("bits-pilani.ac.in"):
              return False
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f"Saving to Firestore: {user_data.get('name')} ({verified_email})")
+        logger.info(f"Saving submission to user profile: {user_data.get('name')} ({verified_email})")
         
-        # 1. Firestore Write
         try:
-            doc_data = {
-                "name": user_data.get("name"),
-                "email": verified_email,
-                "student_id": user_data.get("student_id"),
-                "preference": user_data.get("preference"),
-                "skills": user_data.get("skills"),
-                "commitments": user_data.get("commitments"),
-                "notes": user_data.get("notes"),
-                "chat_history": chat_history,
-                "timestamp": timestamp,
-                "synced": False
-            }
-            self.db.collection("candidates").add(doc_data)
+            # If we have UID, update the user's profile directly
+            if uid:
+                doc_ref = self.db.collection("users").document(uid)
+                doc_ref.update({
+                    "submission": {
+                        "student_id": user_data.get("student_id"),
+                        "preference": user_data.get("preference"),
+                        "skills": user_data.get("skills"),
+                        "commitments": user_data.get("commitments"),
+                        "notes": user_data.get("notes"),
+                        "submitted_at": timestamp
+                    },
+                    "final_chat_history": chat_history,
+                    "form_submitted": True,
+                    "status": "submitted",
+                    "synced_to_sheets": False
+                })
+                logger.info(f"✅ Submission saved to users/{uid}")
+            else:
+                # Fallback: create in users collection by email hash
+                import hashlib
+                uid_fallback = hashlib.md5(verified_email.encode()).hexdigest()
+                doc_ref = self.db.collection("users").document(uid_fallback)
+                doc_ref.set({
+                    "email": verified_email,
+                    "name": user_data.get("name"),
+                    "submission": {
+                        "student_id": user_data.get("student_id"),
+                        "preference": user_data.get("preference"),
+                        "skills": user_data.get("skills"),
+                        "commitments": user_data.get("commitments"),
+                        "notes": user_data.get("notes"),
+                        "submitted_at": timestamp
+                    },
+                    "final_chat_history": chat_history,
+                    "form_submitted": True,
+                    "status": "submitted",
+                    "synced_to_sheets": False
+                }, merge=True)
+                logger.info(f"✅ Submission saved to users/{uid_fallback} (fallback)")
+                
         except Exception as e:
             logger.critical(f"FATAL: Firestore Write Failed! {e}")
             return False
 
-        # 2. Sync to Sheets
+        # Sync to Sheets (background)
         threading.Thread(target=self._sync_one, args=(user_data, verified_email, timestamp)).start()
         return True
 
@@ -164,9 +192,6 @@ class DatabaseManager:
 
     def get_all_stats(self) -> Dict:
         if not self.db: return {"error": "No DB"}
-        # Firestore count aggregation can be expensive/slow on huge datasets, 
-        # but for this app straight count is fine or using aggregation queries if valid.
-        # We'll just stream for now (not efficient for millions, fine for thousands)
         try:
             all_docs = list(self.db.collection("candidates").stream())
             total = len(all_docs)
@@ -174,3 +199,213 @@ class DatabaseManager:
             return {"total": total, "synced": synced, "pending": total - synced}
         except:
             return {"status": "error"}
+
+    # ========== USER PROFILE & CHAT CHECKPOINT SYSTEM ==========
+
+    def get_or_create_profile(self, uid: str, email: str, name: str) -> Dict:
+        """
+        Gets existing user profile or creates a new one.
+        Called on first chat message of a session.
+        """
+        if not self.db:
+            logger.warning("Firestore unavailable for profile.")
+            return {}
+        
+        try:
+            doc_ref = self.db.collection("users").document(uid)
+            doc = doc_ref.get()
+            
+            if doc.exists:
+                # Update last active
+                doc_ref.update({
+                    "last_active": datetime.datetime.utcnow().isoformat(),
+                })
+                logger.info(f"👤 Profile found: {email}")
+                return doc.to_dict()
+            else:
+                # Create new profile
+                profile = {
+                    "uid": uid,
+                    "email": email,
+                    "name": name,
+                    "created_at": datetime.datetime.utcnow().isoformat(),
+                    "last_active": datetime.datetime.utcnow().isoformat(),
+                    "status": "in_progress",  # in_progress | submitted | granted
+                    "sessions": [],
+                    "total_messages": 0,
+                    "access_granted": False
+                }
+                doc_ref.set(profile)
+                logger.info(f"✨ New profile created: {email}")
+                return profile
+        except Exception as e:
+            logger.error(f"Profile error for {email}: {e}")
+            return {}
+
+    def start_session(self, uid: str) -> str:
+        """
+        Starts a new chat session for the user.
+        Returns the session_id.
+        """
+        import uuid
+        session_id = str(uuid.uuid4())
+        
+        if not self.db:
+            return session_id
+        
+        try:
+            doc_ref = self.db.collection("users").document(uid)
+            session = {
+                "session_id": session_id,
+                "started_at": datetime.datetime.utcnow().isoformat(),
+                "messages": [],
+                "outcome": "in_progress"  # in_progress | granted | abandoned
+            }
+            doc_ref.update({
+                "sessions": firestore.ArrayUnion([session]),
+                "last_active": datetime.datetime.utcnow().isoformat()
+            })
+            logger.info(f"🚀 Session started: {session_id[:8]}...")
+        except Exception as e:
+            logger.error(f"Session start error: {e}")
+        
+        return session_id
+
+    def save_chat_checkpoint(self, uid: str, session_id: str, messages: List[Dict], force: bool = False) -> bool:
+        """
+        Saves chat checkpoint every 10 messages (or if force=True).
+        Updates the session's messages array in the user's profile.
+        """
+        if not self.db:
+            return False
+        
+        # Only save every 10 messages unless forced
+        if not force and len(messages) % 10 != 0:
+            return False
+        
+        try:
+            doc_ref = self.db.collection("users").document(uid)
+            doc = doc_ref.get()
+            
+            if not doc.exists:
+                return False
+            
+            data = doc.to_dict()
+            sessions = data.get("sessions", [])
+            
+            # Find and update the current session
+            for i, session in enumerate(sessions):
+                if session.get("session_id") == session_id:
+                    sessions[i]["messages"] = messages
+                    sessions[i]["last_checkpoint"] = datetime.datetime.utcnow().isoformat()
+                    break
+            
+            doc_ref.update({
+                "sessions": sessions,
+                "total_messages": len(messages),
+                "last_active": datetime.datetime.utcnow().isoformat()
+            })
+            
+            logger.info(f"💾 Checkpoint saved: {len(messages)} messages for session {session_id[:8]}...")
+            return True
+        except Exception as e:
+            logger.error(f"Checkpoint error: {e}")
+            return False
+
+    def mark_access_granted(self, uid: str, session_id: str) -> bool:
+        """
+        Marks the user as having been granted access.
+        Updates both the session outcome and the user's overall status.
+        """
+        if not self.db:
+            return False
+        
+        try:
+            doc_ref = self.db.collection("users").document(uid)
+            doc = doc_ref.get()
+            
+            if not doc.exists:
+                return False
+            
+            data = doc.to_dict()
+            sessions = data.get("sessions", [])
+            
+            for i, session in enumerate(sessions):
+                if session.get("session_id") == session_id:
+                    sessions[i]["outcome"] = "granted"
+                    sessions[i]["granted_at"] = datetime.datetime.utcnow().isoformat()
+                    break
+            
+            doc_ref.update({
+                "sessions": sessions,
+                "access_granted": True,
+                "status": "granted",
+                "last_active": datetime.datetime.utcnow().isoformat()
+            })
+            
+            logger.info(f"🎉 Access granted for user: {uid}")
+            return True
+        except Exception as e:
+            logger.error(f"Grant access error: {e}")
+            return False
+
+    def get_user_stats(self) -> Dict:
+        """Returns stats about all users."""
+        if not self.db:
+            return {"error": "No DB"}
+        try:
+            users = list(self.db.collection("users").stream())
+            total = len(users)
+            granted = sum(1 for u in users if u.to_dict().get("access_granted"))
+            in_progress = total - granted
+            return {"total_users": total, "access_granted": granted, "in_progress": in_progress}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def mark_form_submitted(self, uid: str) -> bool:
+        """
+        Marks the user's form as submitted.
+        Called after successful form submission.
+        """
+        if not self.db:
+            return False
+        
+        try:
+            doc_ref = self.db.collection("users").document(uid)
+            doc_ref.update({
+                "form_submitted": True,
+                "status": "submitted",
+                "submitted_at": datetime.datetime.utcnow().isoformat(),
+                "last_active": datetime.datetime.utcnow().isoformat()
+            })
+            logger.info(f"📝 Form marked as submitted for user: {uid}")
+            return True
+        except Exception as e:
+            logger.error(f"Mark submitted error: {e}")
+            return False
+
+    def check_user_status(self, uid: str) -> Dict:
+        """
+        Checks if a user has already submitted.
+        Returns status info for frontend to decide what to show.
+        """
+        if not self.db:
+            return {"error": "No DB", "submitted": False}
+        
+        try:
+            doc_ref = self.db.collection("users").document(uid)
+            doc = doc_ref.get()
+            
+            if not doc.exists:
+                return {"exists": False, "submitted": False, "access_granted": False}
+            
+            data = doc.to_dict()
+            return {
+                "exists": True,
+                "submitted": data.get("form_submitted", False),
+                "access_granted": data.get("access_granted", False),
+                "status": data.get("status", "unknown")
+            }
+        except Exception as e:
+            logger.error(f"Check status error: {e}")
+            return {"error": str(e), "submitted": False}

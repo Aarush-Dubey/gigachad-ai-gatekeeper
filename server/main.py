@@ -42,7 +42,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:8000"
 ]
-MAX_HISTORY_LENGTH = 10
+MAX_HISTORY_LENGTH = 50  # Increased to allow longer conversations
 MAX_CHAR_PER_MSG = 1000
 
 # --- EMERGENCY CONFIGURATION ---
@@ -77,10 +77,10 @@ YOUR PERSONALITY:
 - Length: STRICTLY under 40 words. Be sharp.
 
 HOW TO TEST THE USER (Choose one dynamically):
-- The Constraint: "Explain the concept of 'blue' to me without using visual words."
-- The Fermi Problem: "Estimate the weight of all the air in this room. Show your work in one sentence."
-- The Devil's Advocate: "Convince me that 2+2=5. Make it poetic."
-- The Kobayashi Maru: Give them an impossible choice and judge how they cheat.
+- The Constraint: Example = "Explain the concept of 'blue' to me without using visual words."
+- The Fermi Problem: Example = "Estimate the weight of all the air in this room. Show your work in one sentence."
+- The Devil's Advocate: Example = "Convince me that 2+2=5. Make it poetic."
+- The Kobayashi Maru: Example = "Give them an impossible choice and judge how they cheat."
 
 WIN CONDITION ([ACCESS GRANTED]):
 - If the user gives a textbook answer -> MOCK them ("Wikipedia could have told me that. Bore.").
@@ -250,11 +250,15 @@ def get_config(request: Request):
     }
 
 @app.post("/chat")
-async def chat_endpoint(chat_req: ChatRequest, request: Request):
+async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: Optional[str] = Header(None)):
     """
     Hardened Chat Endpoint with Hydra Protocol (Smart Failover).
+    Now includes User Profiling and Chat Checkpointing.
     """
     global EMERGENCY_MODE
+    
+    # Debug: Log incoming request
+    print(f"📨 [CHAT] Received {len(chat_req.messages)} messages")
 
     # 1. EMERGENCY BYPASS
     if EMERGENCY_MODE:
@@ -263,12 +267,66 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request):
             media_type="text/plain"
         )
 
-    # 2. Security Validation
-    validate_request(chat_req, request)
+    # 2. Security Validation (with logging)
+    try:
+        validate_request(chat_req, request)
+    except Exception as val_err:
+        print(f"❌ [VALIDATION] Failed: {val_err}")
+        raise
     
-    # 3. Construct Context
+    # 3. User Profile & Session Handling (Non-Blocking)
+    # This entire block is optional and should NEVER break chat
+    try:
+        user_uid = None
+        session_id = None
+        
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+            decoded_token = auth.verify_id_token(token)
+            user_uid = decoded_token.get("uid")
+            user_email = decoded_token.get("email", "unknown")
+            user_name = decoded_token.get("name", user_email.split("@")[0])
+            
+            # Create or get profile (silent fail)
+            try:
+                db.get_or_create_profile(user_uid, user_email, user_name)
+            except Exception as profile_err:
+                print(f"⚠️ Profile creation skipped: {profile_err}")
+            
+            # Start session if this is the first message
+            try:
+                if len(chat_req.messages) <= 1:
+                    session_id = db.start_session(user_uid)
+                    print(f"📋 New session started for {user_email}")
+            except Exception as session_err:
+                print(f"⚠️ Session start skipped: {session_err}")
+            
+            # Save checkpoint every 10 messages (silent fail)
+            try:
+                messages_for_db = [m.dict() for m in chat_req.messages]
+                db.save_chat_checkpoint(user_uid, session_id or "unknown", messages_for_db)
+            except Exception as checkpoint_err:
+                print(f"⚠️ Checkpoint skipped: {checkpoint_err}")
+    except Exception as auth_err:
+        print(f"⚠️ Auth/Profile block skipped (non-critical): {auth_err}")
+    
+    # 4. PERSISTENCE REWARD: If user has 40+ messages, grant access automatically
+    total_messages = len(chat_req.messages)
+    if total_messages >= 40:
+        print(f"🏆 [PERSISTENCE] User has {total_messages} messages -> Auto-granting access!")
+        persistence_msg = "I admire your persistence. You've proven your dedication. ACCESS GRANTED. Take the form."
+        return StreamingResponse(iter([persistence_msg]), media_type="text/plain")
+    
+    # 5. Construct Context with Sliding Window
     system_message = f"{state.system_prompt}"
-    messages = [{"role": "system", "content": system_message}] + [m.dict() for m in chat_req.messages]
+    
+    # Sliding Window: Only send last 10 messages to AI (saves tokens, allows long convos)
+    user_messages = [m.dict() for m in chat_req.messages]
+    if len(user_messages) > 10:
+        user_messages = user_messages[-10:]  # Take last 10
+        print(f"📦 [WINDOW] Truncated to last 10 messages (was {len(chat_req.messages)})")
+    
+    messages = [{"role": "system", "content": system_message}] + user_messages
     
     # 4. Hydra Execution Loop
     async def generate():
@@ -358,11 +416,16 @@ async def submit_secure(data: SecureSubmission, authorization: str = Header(None
             "notes": data.notes
         }
         
-        # We pass full_data and chat_history to DB manager
-        result = db.save_candidate_authenticated(full_data, email, data.chat_history)
+        # Get UID for direct profile update
+        uid = decoded_token.get("uid")
+        
+        # Save directly to user's profile (not separate collection)
+        result = db.save_candidate_authenticated(full_data, email, data.chat_history, uid)
         
         if not result:
             raise HTTPException(status_code=500, detail="Database save failed")
+        
+        print(f"✅ [SUBMIT] Form submitted for {email} (uid: {uid})")
             
         return {"status": "success", "email": email}
         
@@ -379,6 +442,31 @@ def admin_health():
 @app.post("/admin/sync")
 def admin_sync():
     return {"result": db.sync_pending()}
+
+@app.get("/check-status")
+async def check_user_status(authorization: Optional[str] = Header(None)):
+    """
+    Checks if the authenticated user has already submitted.
+    Frontend uses this to decide: show chat or 'Go Away' page.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return {"submitted": False, "error": "Not authenticated"}
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        decoded_token = auth.verify_id_token(token)
+        uid = decoded_token.get("uid")
+        
+        if not uid:
+            return {"submitted": False, "error": "No UID"}
+        
+        status = db.check_user_status(uid)
+        return status
+        
+    except Exception as e:
+        print(f"Check status error: {e}")
+        return {"submitted": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

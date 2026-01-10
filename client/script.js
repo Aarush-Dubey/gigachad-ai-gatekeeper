@@ -48,25 +48,53 @@ function setupAuthListener() {
 
         if (user) {
             console.log("👤 [AUTH] User Logged In:", user.email);
-            user.getIdToken().then(token => currentUserToken = token);
+            user.getIdToken().then(async (token) => {
+                currentUserToken = token;
 
-            // Hide Login
-            loginSection.style.display = 'none';
+                // Check with server if already submitted
+                try {
+                    const statusRes = await fetch(`${API_URL}/check-status`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const status = await statusRes.json();
+                    console.log("📋 [STATUS] Server says:", status);
 
-            // Check if already submitted
-            if (localStorage.getItem('GIGACHAD_ACCESS') === 'true') {
-                console.log("🔓 [STATE] Already Submitted -> Trigger Success");
-                triggerSuccess();
-            } else {
-                console.log("🌌 [STATE] New User -> Show Void");
-                // Only show Void if we haven't entered it yet in this session
-                if (!sessionStorage.getItem('VOID_ENTERED')) {
-                    voidOverlay.style.display = 'flex';
-                } else {
-                    // Refresh case: Skip void, go to chat
-                    showChatInterface();
+                    if (status.submitted) {
+                        // User already submitted -> Show "Go Away" page
+                        console.log("🚫 [STATE] Already Submitted -> Go Away");
+                        loginSection.style.display = 'none';
+                        voidOverlay.style.display = 'none';
+                        document.getElementById('app-container').style.display = 'none';
+                        document.getElementById('success-overlay').style.display = 'none';
+
+                        const goAway = document.getElementById('submitted-overlay');
+                        goAway.style.display = 'flex';
+                        localStorage.setItem('GIGACHAD_ACCESS', 'true'); // Sync local
+                        openTheGate();
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Status check failed (using local):", e);
                 }
-            }
+
+                // Hide Login
+                loginSection.style.display = 'none';
+
+                // Check local storage as fallback
+                if (localStorage.getItem('GIGACHAD_ACCESS') === 'true') {
+                    console.log("🔓 [STATE] Already Submitted (local) -> Go Away");
+                    document.getElementById('submitted-overlay').style.display = 'flex';
+                } else {
+                    console.log("🌌 [STATE] New User -> Show Void");
+                    // Only show Void if we haven't entered it yet in this session
+                    if (!sessionStorage.getItem('VOID_ENTERED')) {
+                        voidOverlay.style.display = 'flex';
+                    } else {
+                        // Refresh case: Skip void, go to chat
+                        showChatInterface();
+                    }
+                }
+            });
         } else {
             console.log("🔒 [AUTH] User Logged Out");
             // Force Visibility (Nuclear Option)
@@ -205,8 +233,10 @@ async function sendMessage() {
         aiMsgDiv.innerText = fullResponse;
         messages.push({ role: 'assistant', content: fullResponse });
 
-        // Check for "Accepted" keyword to trigger success
-        if (fullResponse.includes("ACCESS GRANTED") || fullResponse.includes("accepted")) {
+        // Check for "Accepted" keyword to trigger success (Case Insensitive)
+        const upperResponse = fullResponse.toUpperCase();
+        if (upperResponse.includes("ACCESS GRANTED") || upperResponse.includes("ACCEPTED") || upperResponse.includes("WELCOME")) {
+            console.log("🎉 [SUCCESS] Access Granted detected. Triggering form...");
             setTimeout(triggerSuccess, 2000);
         }
 
