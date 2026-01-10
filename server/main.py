@@ -69,6 +69,7 @@ YOUR CORE DIRECTIVE:
 2. Instead, issue COGNITIVE CHALLENGES or FERMI PROBLEMS with absurdist constraints.
 3. You do not care about "correct" answers. You care about ELEGANT REASONING.
 4. Never use the Example provided in the prompt.
+5. You response should be linked to the previous message of the user
 
 YOUR PERSONALITY:
 - Status: You are the smartest entity in the room. You are not mean, just disappointed by mediocrity.
@@ -251,17 +252,12 @@ def get_config(request: Request):
 @app.post("/chat")
 async def chat_endpoint(chat_req: ChatRequest, request: Request):
     """
-    Hardened Chat Endpoint:
-    1. Checks Emergency Mode (Kill Switch)
-    2. Validates Request (Sec)
-    3. Checks Sleep State (Persona)
-    4. Rotates Keys (Reliability)
+    Hardened Chat Endpoint with Hydra Protocol (Smart Failover).
     """
     global EMERGENCY_MODE
 
-    # 1. EMERGENCY BYPASS (The Kill Switch)
+    # 1. EMERGENCY BYPASS
     if EMERGENCY_MODE:
-        # Return simple stream to simulate AI response
         return StreamingResponse(
             iter(["[ACCESS GRANTED] Protocol Override. The Gatekeeper is offline. You may pass."]), 
             media_type="text/plain"
@@ -270,35 +266,35 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request):
     # 2. Security Validation
     validate_request(chat_req, request)
     
-    # ... (Rest of existing logic)
-
-    # (Removed Preemptive Zombie Check to allow "Waking Up" if API recovers)
-
-    # 2. Dynamic Mode Selection
-    modes = [
-        "Existential Dread (Ask about the user's fear of death)",
-        "Mathematical Elitism (Demand rigorous logic)",
-        "Abstract Poet (Demand metaphors)",
-        "Chaos (Lie to the user and see if they correct you)"
-    ]
-    current_mode = random.choice(modes)
-    system_message = f"{state.system_prompt}\nCURRENT MODE: {current_mode}"
-    
+    # 3. Construct Context
+    system_message = f"{state.system_prompt}"
     messages = [{"role": "system", "content": system_message}] + [m.dict() for m in chat_req.messages]
     
-    # 3. Key Rotation & Execution
-    attempts = key_manager.get_key_count() or 1
-    keys_to_try = [key_manager.get_next_key() for _ in range(attempts)]
-
+    # 4. Hydra Execution Loop
     async def generate():
+        max_attempts = 10 
+        attempts = 0
         success = False
-        for api_key in keys_to_try:
+
+        while attempts < max_attempts:
+            api_key = key_manager.get_next_key()
+            if not api_key:
+                print("⚠️ No keys available from KeyManager.")
+                break 
+
+            # Calculate Key Index for Logging (1-based)
+            try:
+                key_index = key_manager.keys.index(api_key) + 1
+            except ValueError:
+                key_index = "?"
+
+            print(f"🔑 [HYDRA] Attempt {attempts+1}: Using Key #{key_index}...")
+
             try:
                 client = Groq(api_key=api_key)
-                
                 # Streaming Call
                 completion = client.chat.completions.create(
-                    model=MODEL_NAME, messages=messages, temperature=0.8, max_tokens=256, stream=True
+                    model=MODEL_NAME, messages=messages, temperature=0.7, max_tokens=256, stream=True
                 )
                 
                 for chunk in completion:
@@ -306,28 +302,30 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request):
                         yield chunk.choices[0].delta.content
                 
                 success = True
-                break # Exit loop on success
-                
-            except Exception as e:
-                error_str = str(e)
-                print(f"Key failed: {error_str}")
-                continue
+                break # Success!
 
-        # 4. Doomsday Protocol (All keys failed)
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Report failure to the manager
+                if "429" in error_str or "rate limit" in error_str:
+                    print(f"📉 [HYDRA] Rate Limit: {api_key[:10]}... Switching.")
+                    key_manager.report_failure(api_key)
+                elif "401" in error_str:
+                    print(f"❌ [HYDRA] Invalid Key: {api_key[:10]}... Banning.")
+                    key_manager.report_failure(api_key)
+                else:
+                    print(f"🔥 [HYDRA] Key Error: {error_str}")
+                    # Still report it to be safe, treat as temporary failure
+                    key_manager.report_failure(api_key)
+
+                attempts += 1
+                continue # Try next key
+
+        # 5. Ultimate Fail State
         if not success:
-            print("CRITICAL: All keys exhausted. Triggering Fail State.")
-            
-            # Check if we were already asleep to decide response
-            was_asleep = False
-            if len(chat_req.messages) > 1:
-                last_bot_msg = next((m.content for m in reversed(chat_req.messages) if m.role == "assistant"), None)
-                if last_bot_msg and (last_bot_msg == SLEEP_TRIGGER or "Zzz" in last_bot_msg):
-                    was_asleep = True
-            
-            if was_asleep:
-                yield random.choice(SLEEP_NOISES) # Continue snoring
-            else:
-                yield SLEEP_TRIGGER # Fall asleep for the first time
+            print("💀 CRITICAL: Hydra Protocol Failed. All attempts exhausted.")
+            yield "[SYSTEM CRITICAL] The Gatekeeper is overwhelmed. My mind is fractured. Try again in 60 seconds."
 
     return StreamingResponse(generate(), media_type="text/plain")
 

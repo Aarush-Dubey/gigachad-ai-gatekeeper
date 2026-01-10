@@ -1,195 +1,175 @@
+/**
+ * GIGACHAD AI GATEKEEPER - CLIENT SCRIPT (Debug & Feature Complete)
+ */
+
+// --- Configuration ---
 const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? "http://localhost:8000"
     : "https://gigachad-ai-gatekeeper-backend.onrender.com";
-let firebaseConfig = null;
 
-// Fetch Config from Backend (Securely render env vars)
+let currentUserToken = null;
+let messages = []; // Chat History State
+
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("✅ [INIT] DOM Fully Loaded.");
+    initApp();
+});
+
+// --- Initialization ---
 async function initApp() {
     try {
+        console.log("📡 [INIT] Fetching Config...");
         const res = await fetch(`${API_URL}/config`);
-        if (!res.ok) {
-            console.error("Config fetch failed with:", res.status);
-            throw new Error("Failed to load config");
-        }
-        firebaseConfig = await res.json();
+        if (!res.ok) throw new Error("Config Fetch Failed");
+
+        const firebaseConfig = await res.json();
+
+        // Init Firebase
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
-        } else {
-            console.log("Firebase already initialized");
+            console.log("🔥 [FIREBASE] Initialized");
         }
-    } catch (e) {
-        console.error("Config Error Details:", e);
-        // Fallback for debugging
-        document.body.innerHTML = `<h1 style='color:red; text-align:center; margin-top:50px;'>⚠️ SYSTEM CONFIGURATION FAILED</h1><p style='text-align:center; color:white;'>${e.message}<br>Check console for details.</p>`;
+
+        setupAuthListener();
+        setupEventListeners();
+
+        // Gate opening is now handled in setupAuthListener to ensure correct state is ready.
+    } catch (error) {
+        console.error("❌ [CRITICAL] System Init Failed:", error);
+        alert("SYSTEM ERROR: Could not connect to Gatekeeper Core.");
     }
 }
 
-// Initialize immediately
-initApp();
+// --- Auth & State Management ---
+function setupAuthListener() {
+    firebase.auth().onAuthStateChanged((user) => {
+        const loginSection = document.getElementById('login-section');
+        const voidOverlay = document.getElementById('void-overlay');
 
-const gateOverlay = document.getElementById('gate-overlay');
-const appContainer = document.getElementById('app-container');
-const chatHistory = document.getElementById('chat-history');
-const userInput = document.getElementById('user-input');
-const sendBtn = document.getElementById('send-btn');
-const successOverlay = document.getElementById('success-overlay');
-const submissionForm = document.getElementById('submission-form');
-const loginSection = document.getElementById('login-section');
-const loginBtn = document.getElementById('google-login-btn');
-const emailDisplay = document.getElementById('user-email-display');
+        if (user) {
+            console.log("👤 [AUTH] User Logged In:", user.email);
+            user.getIdToken().then(token => currentUserToken = token);
 
-// State
-let messages = [];
-let currentUserToken = null;
+            // Hide Login
+            loginSection.style.display = 'none';
 
-const submittedOverlay = document.getElementById('submitted-overlay');
-
-// --- Persistence Check ---
-const hasAccess = localStorage.getItem('GIGACHAD_ACCESS');
-const hasSubmitted = localStorage.getItem('GIGACHAD_SUBMITTED');
-
-window.addEventListener('load', () => {
-    if (hasSubmitted) {
-        // Mode 1: Already Submitted -> Block everything
-        submittedOverlay.style.display = 'flex';
-        gateOverlay.style.display = 'none';
-        appContainer.style.display = 'none';
-    } else if (hasAccess) {
-        // Mode 2: Access Granted but not submitted -> Go straight to form
-        successOverlay.style.display = 'flex';
-        gateOverlay.style.display = 'none';
-        appContainer.style.opacity = '0.1'; // dim background
-        appContainer.style.pointerEvents = 'none'; // disable interaction
-    } else {
-        // Mode 3: Normal Entry -> Animation
-        setTimeout(() => {
-            gateOverlay.classList.add('gate-open');
-            // LOGIN FIRST FLOW:
-            // 1. Hide the Chat App initially
-            appContainer.style.display = 'none';
-            // 2. Show the Success Overlay (which acts as the login container now)
-            successOverlay.style.display = 'flex';
-            // 3. Ensure Login Button is visible
-            loginSection.style.display = 'block';
-            submissionForm.style.display = 'none';
-        }, 1500);
-    }
-});
-
-// --- Auth Logic (LOGIN FIRST) ---
-loginBtn.addEventListener('click', () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ hd: "pilani.bits-pilani.ac.in" });
-
-    firebase.auth().signInWithPopup(provider)
-        .then((result) => {
-            const user = result.user;
-            if (!user.email.endsWith("bits-pilani.ac.in")) {
-                alert("Restricted Access: @pilani.bits-pilani.ac.in required.");
-                user.delete();
-                return;
-            }
-
-            user.getIdToken().then(idToken => {
-                // --- Success ---
-                currentUserToken = idToken; // Store for API calls
-                loginSection.style.display = 'none'; // Hide Login
-
-                // Check if user already has access or submitted
-                if (localStorage.getItem('GIGACHAD_ACCESS') === 'true') {
-                    // Skip Void, show form directly
-                    triggerSuccess();
-                } else {
-                    // SHOW THE VOID (Cinematic Intro)
-                    document.getElementById('void-overlay').style.display = 'flex';
-                }
-            });
-        })
-        .catch((error) => {
-            alert("Login Failed: " + error.message);
-        });
-});
-
-// --- Global Auth Listener (Fixes Reload Issue) ---
-// This runs AUTOMATICALLY on load if user is logged in
-firebase.auth().onAuthStateChanged((user) => {
-    const loginSection = document.getElementById('login-section');
-    if (user) {
-        // User is logged in
-        user.getIdToken().then(token => {
-            currentUserToken = token;
-            loginSection.style.display = 'none'; // Ensure Login is hidden
-
-            // Check submission status
+            // Check if already submitted
             if (localStorage.getItem('GIGACHAD_ACCESS') === 'true') {
+                console.log("🔓 [STATE] Already Submitted -> Trigger Success");
                 triggerSuccess();
             } else {
-                // Trigger Void if we are just starting
-                // Check if the Void is visible. If it's effectively "hidden" (opacity 0 or display none), don't show it again to be annoying?
-                // No, let's show it on reload for effect. 
-                document.getElementById('void-overlay').style.display = 'flex';
+                console.log("🌌 [STATE] New User -> Show Void");
+                // Only show Void if we haven't entered it yet in this session
+                if (!sessionStorage.getItem('VOID_ENTERED')) {
+                    voidOverlay.style.display = 'flex';
+                } else {
+                    // Refresh case: Skip void, go to chat
+                    showChatInterface();
+                }
             }
-        });
-    } else {
-        // User is NOT logged in
-        loginSection.style.display = 'flex'; // Show Login and Identity Header
-        document.getElementById('void-overlay').style.display = 'none'; // No Void for strangers
-    }
-});
+        } else {
+            console.log("🔒 [AUTH] User Logged Out");
+            // Force Visibility (Nuclear Option)
+            loginSection.style.cssText = "display: flex !important; opacity: 1 !important; visibility: visible !important; z-index: 9999 !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background-color: #050505 !important; flex-direction: column !important;";
 
-// --- Cinematic Logic ---
+            document.getElementById('app-container').style.display = 'none';
+            voidOverlay.style.display = 'none';
+        }
+
+        // State is ready -> Open the Gate
+        openTheGate();
+    });
+}
+
+function openTheGate() {
+    const gate = document.getElementById('gate-overlay');
+    // Only open if it hasn't been opened yet or if it's visible
+    if (gate && gate.style.display !== 'none') {
+        gate.classList.add('gate-open');
+        setTimeout(() => {
+            gate.style.display = 'none';
+        }, 2000);
+    }
+}
+
+// --- Event Listeners (Guaranteed Attachment) ---
+function setupEventListeners() {
+    // 1. Google Login
+    const loginBtn = document.getElementById('google-login-btn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider).catch(e => alert(e.message));
+        });
+    }
+
+    // 2. Chat Interaction
+    const sendBtn = document.getElementById('send-btn');
+    const userInput = document.getElementById('user-input');
+
+    if (sendBtn && userInput) {
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        console.log("✅ [UI] Chat Listeners Attached");
+    } else {
+        console.error("❌ [UI] Chat Elements Missin in DOM!");
+    }
+
+    // 3. Form Submission
+    const form = document.getElementById('submission-form');
+    if (form) {
+        form.addEventListener('submit', handleFormSubmit);
+    }
+}
+
+// --- Flow Control ---
 function enterTheVoid() {
+    console.log("🌌 [ACTION] Entering the Void...");
     const overlay = document.getElementById('void-overlay');
     overlay.style.opacity = '0';
 
+    sessionStorage.setItem('VOID_ENTERED', 'true'); // Remember for refresh
+
     setTimeout(() => {
         overlay.style.display = 'none';
-
-        // CRITICAL: Ensure Login is GONE and Chat is SHOWN
-        document.getElementById('login-section').style.display = 'none';
-        appContainer.style.display = 'flex'; // Reveal Chat
-
-        appContainer.style.opacity = '0';
-        setTimeout(() => appContainer.style.opacity = '1', 100);
-
-        // First message logic...
-        if (messages.length === 0) {
-            const user = firebase.auth().currentUser;
-            const name = user ? user.displayName.split(" ")[0] : "User";
-            appendMessage('ai', `Welcome, ${name}. Prove your worth.`);
-            messages.push({ "role": "assistant", "content": `Welcome, ${name}. Prove your worth.` });
-        }
+        showChatInterface();
     }, 1500);
 }
 
-function openInfo() { document.getElementById('info-modal').style.display = 'flex'; }
-function closeInfo() { document.getElementById('info-modal').style.display = 'none'; }
+function showChatInterface() {
+    // Force Hide Login (Safety)
+    document.getElementById('login-section').style.display = 'none';
 
-// --- Chat Logic ---
-function appendMessage(role, text) {
-    const div = document.createElement('div');
-    div.className = `message ${role}`;
-    div.innerText = text;
-    chatHistory.appendChild(div);
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-    return div;
+    // Show App
+    const app = document.getElementById('app-container');
+    app.style.display = 'flex'; // Flexbox layout
+    app.style.opacity = '1';
+
+    // Initial AI Message (if empty)
+    if (messages.length === 0) {
+        const user = firebase.auth().currentUser;
+        const name = user ? user.displayName.split(" ")[0] : "Human";
+        appendMessage('ai', `Welcome, ${name}. Prove your worth.`);
+        messages.push({ "role": "assistant", "content": `Welcome, ${name}. Prove your worth.` });
+    }
 }
 
+// --- Chat Logic ---
 async function sendMessage() {
-    const text = userInput.value.trim();
+    const input = document.getElementById('user-input');
+    const text = input.value.trim();
     if (!text) return;
 
-    if (!currentUserToken) {
-        alert("Session Expired. Please reload.");
-        return;
-    }
+    console.log("💬 [CHAT] User sent:", text);
 
-    // UI Updates
-    userInput.value = '';
+    // UI Update
     appendMessage('user', text);
     messages.push({ role: 'user', content: text });
+    input.value = '';
 
-    // Create placeholder for AI
+    // Create AI Placeholder
     const aiMsgDiv = appendMessage('ai', '...');
     let fullResponse = "";
 
@@ -198,14 +178,14 @@ async function sendMessage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${currentUserToken}` // Send Token
+                'Authorization': `Bearer ${currentUserToken}`
             },
             body: JSON.stringify({ messages: messages })
         });
 
         if (!response.ok) throw new Error("API Error");
 
-        // Streaming logic
+        // Stream Reader
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         aiMsgDiv.innerText = "";
@@ -213,73 +193,73 @@ async function sendMessage() {
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             const chunk = decoder.decode(value);
             fullResponse += chunk;
-            aiMsgDiv.innerText = fullResponse + "▌";
-            chatHistory.scrollTop = chatHistory.scrollHeight;
+            aiMsgDiv.innerText = fullResponse + "▌"; // Cursor effect
+
+            // Auto Scroll
+            const history = document.getElementById('chat-history');
+            history.scrollTop = history.scrollHeight;
         }
 
-        // Finalize
         aiMsgDiv.innerText = fullResponse;
         messages.push({ role: 'assistant', content: fullResponse });
 
-        // Check Access (Regex)
-        const accessRegex = /\[?\s*access\s+granted\s*\]?/i;
-        if (accessRegex.test(fullResponse)) {
-            triggerSuccess();
+        // Check for "Accepted" keyword to trigger success
+        if (fullResponse.includes("ACCESS GRANTED") || fullResponse.includes("accepted")) {
+            setTimeout(triggerSuccess, 2000);
         }
 
-    } catch (e) {
-        aiMsgDiv.innerText = "Error: " + e.message;
+    } catch (error) {
+        console.error("❌ [CHAT] Error:", error);
+        aiMsgDiv.innerText = "[OOPS! Too many people are trying to talk with me rn so you come back later]";
     }
 }
 
+function appendMessage(role, text) {
+    const history = document.getElementById('chat-history');
+    const div = document.createElement('div');
+    div.className = role === 'user' ? 'user-msg' : 'ai-msg';
+    div.innerText = text;
+    history.appendChild(div);
+    history.scrollTop = history.scrollHeight;
+    return div;
+}
+
+// --- Data Submission ---
 function triggerSuccess() {
     localStorage.setItem('GIGACHAD_ACCESS', 'true');
-    setTimeout(() => {
-        // Hide Chat
-        appContainer.style.display = 'none';
+    document.getElementById('app-container').style.display = 'none';
 
-        // Show Success Overlay with Updated Content
-        document.getElementById('overlay-title').innerText = "🔓 ACCESS GRANTED";
-        document.getElementById('overlay-subtitle').innerText = "Welcome to the elite.";
+    const overlay = document.getElementById('success-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('submission-form').style.display = 'block';
 
-        // Ensure Form is Visible, Login is Hidden
-        loginSection.style.display = 'none';
-        submissionForm.style.display = 'block';
-
-        successOverlay.style.display = 'flex';
-    }, 1000);
+    // Update User Info
+    const user = firebase.auth().currentUser;
+    if (user) document.getElementById('user-email-display').innerText = user.email;
 }
 
-// --- Event Listeners ---
-sendBtn.addEventListener('click', sendMessage);
-userInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-});
-
-// --- Form Submission ---
-submissionForm.addEventListener('submit', async (e) => {
+async function handleFormSubmit(e) {
     e.preventDefault();
+    console.log("📝 [FORM] Submitting...");
 
-    if (!currentUserToken) {
-        alert("Authentication Required.");
-        return;
-    }
-
-    const btn = submissionForm.querySelector('button');
-    btn.disabled = true;
+    const btn = document.querySelector('#submission-form button');
     btn.innerText = "SECURING...";
+    btn.disabled = true;
+
+    // Collect Data (Multi-Select)
+    const prefSelect = document.getElementById('preference');
+    const selectedPrefs = Array.from(prefSelect.selectedOptions).map(o => o.value).join(", ");
 
     const data = {
-        name: firebase.auth().currentUser.displayName, // Auto-fill name
+        name: firebase.auth().currentUser.displayName,
         student_id: document.getElementById('student-id').value,
-        preference: document.getElementById('preference').value,
+        preference: selectedPrefs,
         skills: document.getElementById('skills').value,
         commitments: document.getElementById('commitments').value,
         notes: document.getElementById('notes').value,
-        chat_history: messages // Send full chat log
+        chat_history: messages
     };
 
     try {
@@ -293,19 +273,18 @@ submissionForm.addEventListener('submit', async (e) => {
         });
 
         if (res.ok) {
-            localStorage.setItem('GIGACHAD_SUBMITTED', 'true');
-            alert("Credentials Secured. We will be in touch.");
-            successOverlay.style.display = 'none';
-            // Reload to show submitted overlay
+            alert("APPLICATION SECURED. YOU MAY LEAVE.");
             window.location.reload();
         } else {
-            const err = await res.json();
-            alert("Error: " + (err.detail || "Unknown error"));
+            throw new Error("Submission Failed");
         }
-    } catch (e) {
-        alert("Connection Failed.");
-    } finally {
+    } catch (error) {
+        alert("Error: " + error.message);
         btn.disabled = false;
-        btn.innerText = "SECURE CREDENTIALS";
+        btn.innerText = "TRY AGAIN";
     }
-});
+}
+
+// --- Helpers ---
+function openInfo() { document.getElementById('info-modal').style.display = 'flex'; }
+function closeInfo() { document.getElementById('info-modal').style.display = 'none'; }

@@ -97,22 +97,8 @@
     <!-- SUCCESS FORM -->
     <div id="success-overlay">
         <div class="success-content">
-            <h1 id="overlay-title">🆔 IDENTITY CHECK</h1>
-            <p id="overlay-subtitle">Authentication Required to Proceed.</p>
-
-            <!-- Auth Warning -->
-            <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">
-                Using BITS Pilani credentials is <strong>MANDATORY</strong>.
-            </p>
-
-            <!-- Login Button -->
-            <div id="login-section">
-                <button id="google-login-btn"
-                    style="background: #fff; color: #333; border: none; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
-                    Sign in with BITS Mail
-                </button>
-            </div>
+            <h1 id="overlay-title">🔓 ACCESS GRANTED</h1>
+            <p id="overlay-subtitle">Processing Candidate Data...</p>
 
             <!-- Submission Form (Hidden until logged in) -->
             <form id="submission-form" style="display: none;">
@@ -126,12 +112,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Preference</label>
-                    <select id="preference" required
-                        style="width: 100%; padding: 10px; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px;">
-                        <option value="" disabled selected>Select Vertical</option>
+                    <label>Preference (Hold Ctrl/Cmd to select multiple)</label>
+                    <select id="preference" required multiple
+                        style="width: 100%; padding: 10px; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px; height: 100px;">
                         <option value="Tech">Tech</option>
                         <option value="Non-Tech">Non-Tech</option>
+                        <option value="Creative">Creative (Design + Website)</option>
                     </select>
                 </div>
 
@@ -141,19 +127,70 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Current Commitments</label>
-                    <input type="text" id="commitments" placeholder="Clubs, projects..." required>
+                    <label>Other Commitments</label>
+                    <input type="text" id="commitments" placeholder="Clubs, projects, etc.">
                 </div>
 
                 <div class="form-group">
-                    <label>Anything else? (Optional)</label>
-                    <textarea id="notes" rows="3"
-                        style="width: 100%; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px; padding: 10px;"></textarea>
+                    <label>Final Notes</label>
+                    <textarea id="notes" placeholder="Any last words?" rows="3"
+                        style="width: 100%; background: #111; color: white; border: 1px solid var(--neon-green); padding: 10px;"></textarea>
                 </div>
 
-                <button type="submit" style="width: 100%; margin-top: 10px;">SECURE CREDENTIALS</button>
+                <button type="submit" style="width: 100%; margin-top: 10px;">SUBMIT APPLICATION</button>
             </form>
         </div>
+    </div>
+
+    <!-- Login Section (Moved Outside to be Independent) -->
+    <div id="login-section" style="display: none;">
+        <div style="text-align: center;">
+            <h1 style="color: var(--neon-green); margin-bottom: 20px;">🆔 IDENTITY CHECK</h1>
+            <p style="color: #888; margin-bottom: 30px;">Using BITS Pilani credentials is <strong>MANDATORY</strong>.
+            </p>
+            <button id="google-login-btn"
+                style="background: #fff; color: #333; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; margin: 0 auto;">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+                Sign in with BITS Mail
+            </button>
+        </div>
+    </div>
+    style="color: var(--neon-green); font-size: 0.8em; margin-bottom: 15px; text-align: left;"></p>
+
+    <div class="form-group">
+        <label>Student ID</label>
+        <input type="text" id="student-id" placeholder="2024XXXX1234" required>
+    </div>
+
+    <div class="form-group">
+        <label>Preference (Hold Ctrl/Cmd to select multiple)</label>
+        <select id="preference" required multiple
+            style="width: 100%; padding: 10px; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px; height: 100px;">
+            <option value="Tech">Tech</option>
+            <option value="Non-Tech">Non-Tech</option>
+            <option value="Creative">Creative (Design + Website)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Key Skills</label>
+        <input type="text" id="skills" placeholder="Python, Video Editing, etc." required>
+    </div>
+
+    <div class="form-group">
+        <label>Current Commitments</label>
+        <input type="text" id="commitments" placeholder="Clubs, projects..." required>
+    </div>
+
+    <div class="form-group">
+        <label>Anything else? (Optional)</label>
+        <textarea id="notes" rows="3"
+            style="width: 100%; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px; padding: 10px;"></textarea>
+    </div>
+
+    <button type="submit" style="width: 100%; margin-top: 10px;">SECURE CREDENTIALS</button>
+    </form>
+    </div>
     </div>
 
     <script src="script.js"></script>

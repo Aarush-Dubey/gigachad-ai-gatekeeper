@@ -7,6 +7,170 @@
     --font-mono: 'Courier New', Courier, monospace;
 }
 
+/* 1. Reset everything to ensure full height */
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    /* Prevent body scroll, we only scroll chat */
+}
+
+/* 2. The Main Flex Container */
+#app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    /* Fallback */
+    height: 100dvh;
+    /* Dynamic height for mobile browsers */
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: var(--dark-bg);
+    color: var(--neon-green);
+    font-family: var(--font-mono);
+    padding: 0;
+    justify-content: flex-start;
+    position: relative;
+    opacity: 0;
+    /* Hidden initially */
+    transition: opacity 1s ease-in 2s;
+}
+
+header {
+    flex-shrink: 0;
+    /* Don't shrink */
+    width: 100%;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    border-bottom: 1px solid #333;
+    z-index: 10;
+    text-align: center;
+}
+
+/* 3. The Chat History (The Flexible Part) */
+#chat-history {
+    flex: 1;
+    /* Grow to fill ALL available space */
+    width: 100%;
+    overflow-y: auto;
+    /* Scroll inside this box */
+    padding: 20px;
+    padding-bottom: 20px;
+    /* Space for aesthetics */
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 0;
+    /* No margin needed with Flex */
+}
+
+/* 4. The Input Area (Solid Footer) */
+#input-area {
+    /* NO position: fixed needed! Flexbox handles it. */
+    flex-shrink: 0;
+    /* Don't let it shrink */
+    width: 100%;
+    background: #050505;
+    border-top: 1px solid #333;
+    padding: 15px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    /* Just in case */
+}
+
+#input-area input {
+    flex: 1;
+    max-width: 700px;
+    padding: 15px;
+    background: #050505;
+    border: 1px solid #333;
+    color: var(--neon-green);
+    font-family: inherit;
+    font-size: 1rem;
+    outline: none;
+    transition: border 0.3s;
+}
+
+#input-area input:focus {
+    border-color: var(--neon-green);
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+}
+
+#send-btn {
+    padding: 0 25px;
+    background: var(--neon-green);
+    color: #000;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: monospace;
+    transition: all 0.2s;
+    height: 50px;
+    /* Match input height */
+}
+
+#send-btn:hover {
+    background: #fff;
+    box-shadow: 0 0 15px var(--neon-green);
+}
+
+/* Message Bubbles */
+.user-msg,
+.ai-msg {
+    max-width: 80%;
+    padding: 12px 18px;
+    border-radius: 8px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    /* Prevent overflow */
+    animation: fadeIn 0.3s ease;
+}
+
+.user-msg {
+    align-self: flex-end;
+    /* Right align */
+    background: rgba(0, 255, 65, 0.1);
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+    text-align: right;
+    border-bottom-right-radius: 2px;
+}
+
+.ai-msg {
+    align-self: flex-start;
+    /* Left align */
+    background: #111;
+    border: 1px solid #333;
+    color: #eee;
+    text-align: left;
+    border-bottom-left-radius: 2px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #000;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-green);
+}
+
 * {
     box-sizing: border-box;
 }
@@ -122,19 +286,19 @@ body {
 
 /* --- Main Interface --- */
 #app-container {
-    min-height: 100vh;
-    /* Critical: Fill screen */
     width: 100%;
     max-width: 800px;
+    /* Limit width on desktop */
     margin: 0 auto;
+    height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    /* Vertically Center */
-    padding: 20px;
-    opacity: 0;
-    /* Hidden initially */
+    padding: 0;
+    /* Remove padding */
     transition: opacity 1s ease-in 2s;
+    position: relative;
+    justify-content: flex-start;
+    /* Align top */
 }
 
 /* --- VOID OVERLAY (Cinematic) --- */
@@ -270,20 +434,23 @@ body {
     color: #fff;
 }
 
-/* Fix Chat Layout */
-#app-container {
-    min-height: 100vh;
+/* --- Login Section (Explicit) --- */
+#login-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     display: flex;
-    flex-direction: column;
-    /* Vertical Stack */
     justify-content: center;
-    /* Vertical Center */
     align-items: center;
-    /* Horizontal Center */
-    padding-bottom: 80px;
-    /* Space for Input */
-    transition: opacity 1s ease-in 2s;
+    background: var(--dark-bg);
+    z-index: 50;
+    /* Below Gate (9999), Above App (1) */
 }
+
+/* Fix Chat Layout */
+/* (Removed duplicate #app-container rules, kept only the latest one above) */
 
 /* Chat Area */
 #chat-history {
