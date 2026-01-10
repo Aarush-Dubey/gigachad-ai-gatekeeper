@@ -1,6 +1,6 @@
 const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? "http://localhost:8000"
-    : "https://YOUR_BACKEND_APP_NAME.onrender.com"; // <--- UPDATE THIS AFTER DEPLOYING BACKEND
+    : "https://gigachad-ai-gatekeeper-backend.onrender.com";
 let firebaseConfig = null;
 
 // Fetch Config from Backend (Securely render env vars)
