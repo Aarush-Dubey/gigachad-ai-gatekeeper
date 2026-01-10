@@ -78,7 +78,12 @@ class KeyManager:
                 
         i = 1
         while True:
+            # Try GROQ_API_KEY_N format first
             numbered_key = os.getenv(f"{fallback}_{i}")
+            # Fallback to GROQ_KEY_N format
+            if not numbered_key:
+                numbered_key = os.getenv(f"GROQ_KEY_{i}")
+            
             if numbered_key:
                 if numbered_key not in keys:
                     keys.append(numbered_key)
