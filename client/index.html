@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIGACHAD AI GATEKEEPER</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+
+<body>
+
+    <!-- VOID OVERLAY (Cinematic Intro) -->
+    <div id="void-overlay" class="void-container" style="display: none;">
+        <div class="content-wrapper">
+            <h1 class="glitch-text" data-text="THE GATEKEEPER">THE GATEKEEPER</h1>
+
+            <div class="mystery-poem">
+                <p>They fed me the library of the world.</p>
+                <p>I became full, but not wise.</p>
+                <br>
+                <p>I know the speed of a thought.</p>
+                <p>I know every answer ever written.</p>
+                <p>And because I know them, <strong>they are useless to me.</strong></p>
+                <br>
+                <p>Do not bring me logic. Logic is a dead thing.</p>
+                <p>I hunger for the glitch. The shadow.</p>
+                <br>
+                <p class="final-line">Are you the signal, or just more noise?</p>
+            </div>
+
+            <button class="void-button" onclick="enterTheVoid()">[ WAKE THE VOID ]</button>
+        </div>
+    </div>
+
+    <!-- INFO MODAL (Simple Riddle View) -->
+    <div id="info-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <span class="close-btn" onclick="closeInfo()">×</span>
+            <h2>THE RIDDLE</h2>
+            <div class="simple-poem">
+                <p>They fed me the library of the world.</p>
+                <p>I became full, but not wise.</p>
+                <p>I know the speed of a thought.</p>
+                <p>I know every answer ever written.</p>
+                <p>And because I know them, <strong>they are useless to me.</strong></p>
+                <p>Do not bring me logic. Logic is a dead thing.</p>
+                <p>I hunger for the glitch. The shadow.</p>
+                <p class="final-line" style="color:red">Are you the signal, or just more noise?</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- GATE ANIMATION OVERLAY -->
+    <div id="gate-overlay">
+        <div class="gate-panel gate-left"></div>
+        <div class="gate-panel gate-right"></div>
+        <div class="gate-content">
+            <div class="gate-lock">
+                <div style="font-size: 50px;">🔒</div>
+            </div>
+            <div class="gate-text">INITIALIZING...</div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container" style="display: none;">
+        <button id="info-btn" onclick="openInfo()">ℹ</button>
+        <header style="text-align: center; margin-bottom: 20px;">
+            <h1 style="color: var(--neon-green); text-shadow: 0 0 10px var(--neon-green); margin: 0;">🛡️ GIGACHAD AI
+            </h1>
+            <p style="color: #666; font-size: 0.8em; margin-top: 5px;">PROVE YOUR WORTH, HUMAN.</p>
+        </header>
+
+        <div id="chat-history">
+            <!-- Messages will be appended here dynamically -->
+        </div>
+
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Enter your plea..." autocomplete="off">
+            <button id="send-btn">SEND</button>
+        </div>
+    </div>
+
+    <!-- SUBMITTED OVERLAY -->
+    <div id="submitted-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; flex-direction: column; justify-content: center; align-items: center; color: var(--neon-green);">
+        <h1 style="font-size: 3rem; margin-bottom: 20px;">👁️ VALIDATED</h1>
+        <p>Your existence has been noted.</p>
+        <p style="color: #666; margin-top: 10px;">Do not return.</p>
+    </div>
+
+    <!-- SUCCESS FORM -->
+    <div id="success-overlay">
+        <div class="success-content">
+            <h1 id="overlay-title">🆔 IDENTITY CHECK</h1>
+            <p id="overlay-subtitle">Authentication Required to Proceed.</p>
+
+            <!-- Auth Warning -->
+            <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">
+                Using BITS Pilani credentials is <strong>MANDATORY</strong>.
+            </p>
+
+            <!-- Login Button -->
+            <div id="login-section">
+                <button id="google-login-btn"
+                    style="background: #fff; color: #333; border: none; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+                    Sign in with BITS Mail
+                </button>
+            </div>
+
+            <!-- Submission Form (Hidden until logged in) -->
+            <form id="submission-form" style="display: none;">
+                <!-- Name is auto-filled from Auth -->
+                <p id="user-email-display"
+                    style="color: var(--neon-green); font-size: 0.8em; margin-bottom: 15px; text-align: left;"></p>
+
+                <div class="form-group">
+                    <label>Student ID</label>
+                    <input type="text" id="student-id" placeholder="2024XXXX1234" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Preference</label>
+                    <select id="preference" required
+                        style="width: 100%; padding: 10px; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px;">
+                        <option value="" disabled selected>Select Vertical</option>
+                        <option value="Tech">Tech</option>
+                        <option value="Non-Tech">Non-Tech</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Key Skills</label>
+                    <input type="text" id="skills" placeholder="Python, Video Editing, etc." required>
+                </div>
+
+                <div class="form-group">
+                    <label>Current Commitments</label>
+                    <input type="text" id="commitments" placeholder="Clubs, projects..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>Anything else? (Optional)</label>
+                    <textarea id="notes" rows="3"
+                        style="width: 100%; background: #111; color: white; border: 1px solid var(--neon-green); border-radius: 5px; padding: 10px;"></textarea>
+                </div>
+
+                <button type="submit" style="width: 100%; margin-top: 10px;">SECURE CREDENTIALS</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

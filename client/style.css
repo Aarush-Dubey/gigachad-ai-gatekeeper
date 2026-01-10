@@ -1,0 +1,440 @@
+/* Global Cyberpunk Theme */
+:root {
+    --neon-green: #00ff41;
+    --neon-pink: #ff0055;
+    --dark-bg: #050505;
+    --panel-bg: rgba(255, 255, 255, 0.05);
+    --font-mono: 'Courier New', Courier, monospace;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--dark-bg);
+    color: var(--neon-green);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    /* Prevent scrolling during gate animation */
+}
+
+/* --- Gate Animation --- */
+#gate-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    pointer-events: none;
+    /* Allow clicks to pass after they move */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.gate-panel {
+    position: absolute;
+    width: 50%;
+    height: 100%;
+    background-color: #000;
+    background-image:
+        linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    z-index: 100;
+    transition: transform 2.5s cubic-bezier(0.7, 0, 0.3, 1);
+}
+
+.gate-left {
+    left: 0;
+    border-right: 2px solid var(--neon-green);
+    transform-origin: left;
+}
+
+.gate-right {
+    right: 0;
+    border-left: 2px solid var(--neon-green);
+    transform-origin: right;
+}
+
+.gate-open .gate-left {
+    transform: translateX(-100%);
+}
+
+.gate-open .gate-right {
+    transform: translateX(100%);
+}
+
+.gate-content {
+    position: absolute;
+    z-index: 101;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: opacity 0.8s ease-out;
+}
+
+.gate-open .gate-content {
+    opacity: 0;
+}
+
+.gate-lock {
+    width: 150px;
+    height: 150px;
+    border: 2px solid var(--neon-green);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+    animation: glowPulse 1s infinite;
+}
+
+.gate-text {
+    margin-top: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 0 10px var(--neon-green);
+    letter-spacing: 5px;
+    background: #000;
+    padding: 5px 15px;
+    border: 1px solid var(--neon-green);
+}
+
+@keyframes glowPulse {
+    0% {
+        box-shadow: 0 0 10px var(--neon-green);
+    }
+
+    50% {
+        box-shadow: 0 0 30px var(--neon-green);
+    }
+
+    100% {
+        box-shadow: 0 0 10px var(--neon-green);
+    }
+}
+
+/* --- Main Interface --- */
+#app-container {
+    min-height: 100vh;
+    /* Critical: Fill screen */
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Vertically Center */
+    padding: 20px;
+    opacity: 0;
+    /* Hidden initially */
+    transition: opacity 1s ease-in 2s;
+}
+
+/* --- VOID OVERLAY (Cinematic) --- */
+.void-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #050505;
+    /* Almost black */
+    color: #a8b3cf;
+    /* Ghostly Blue-Grey */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    font-family: 'Courier New', Courier, monospace;
+    transition: opacity 1.5s ease-out;
+}
+
+.content-wrapper {
+    text-align: center;
+    max-width: 600px;
+    padding: 20px;
+}
+
+.glitch-text {
+    font-size: 2.5rem;
+    margin-bottom: 40px;
+    letter-spacing: 5px;
+    color: #fff;
+    text-shadow: 2px 2px #ff0000;
+}
+
+.mystery-poem {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    opacity: 0.8;
+    text-shadow: 0px 0px 10px rgba(168, 179, 207, 0.2);
+    animation: breathe 4s infinite ease-in-out;
+}
+
+.mystery-poem strong {
+    color: #fff;
+    font-weight: normal;
+    text-shadow: 0px 0px 15px rgba(255, 255, 255, 0.5);
+}
+
+.final-line {
+    margin-top: 20px;
+    font-style: italic;
+    color: #ff4d4d;
+    text-shadow: 0px 0px 8px rgba(255, 77, 77, 0.4);
+}
+
+.void-button {
+    margin-top: 50px;
+    background: transparent;
+    border: 1px solid #a8b3cf;
+    color: #a8b3cf;
+    padding: 15px 40px;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 2px;
+}
+
+.void-button:hover {
+    background: #a8b3cf;
+    color: #000;
+    box-shadow: 0px 0px 20px rgba(168, 179, 207, 0.6);
+}
+
+@keyframes breathe {
+
+    0%,
+    100% {
+        opacity: 0.7;
+    }
+
+    50% {
+        opacity: 1.0;
+    }
+}
+
+/* --- INFO BUTTON & MODAL --- */
+#info-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-family: monospace;
+    z-index: 100;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.modal-box {
+    background: #111;
+    border: 1px solid var(--neon-green);
+    padding: 40px;
+    max-width: 500px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 0 20px var(--neon-green);
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #fff;
+}
+
+/* Fix Chat Layout */
+#app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* Vertical Stack */
+    justify-content: center;
+    /* Vertical Center */
+    align-items: center;
+    /* Horizontal Center */
+    padding-bottom: 80px;
+    /* Space for Input */
+    transition: opacity 1s ease-in 2s;
+}
+
+/* Chat Area */
+#chat-history {
+    /* No flex-grow: Let it take natural height based on content */
+    max-height: 60vh;
+    /* Limit height so it doesn't push off screen */
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0);
+    /* Transparent */
+    border: none;
+    margin-bottom: 20px;
+}
+
+.message {
+    padding: 12px 18px;
+    margin: 8px 0;
+    border-radius: 8px;
+    max-width: 80%;
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+}
+
+.message.user {
+    align-self: flex-end;
+    background-color: rgba(0, 255, 65, 0.1);
+    border: 1px solid var(--neon-green);
+    border-bottom-right-radius: 0;
+}
+
+.message.ai {
+    align-self: flex-start;
+    background-color: rgba(255, 0, 85, 0.1);
+    border: 1px solid var(--neon-pink);
+    border-bottom-left-radius: 0;
+    color: #ffdce5;
+    box-shadow: -2px 2px 10px rgba(255, 0, 85, 0.1);
+}
+
+/* Custom Scrollbar */
+#chat-history::-webkit-scrollbar {
+    width: 8px;
+}
+
+#chat-history::-webkit-scrollbar-track {
+    background: #000;
+}
+
+#chat-history::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+/* Input Area */
+#input-area {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 800px;
+    padding: 0 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+    /* Ensure it stays above other content */
+}
+
+/* Add padding to container so content doesn't get hidden behind fixed input */
+#app-container {
+    padding-bottom: 80px;
+}
+
+input[type="text"] {
+    flex: 1;
+    background: #111;
+    border: 1px solid var(--neon-green);
+    color: #fff;
+    padding: 10px 15px;
+    font-family: var(--font-mono);
+    border-radius: 5px;
+    outline: none;
+}
+
+input[type="text"]:focus {
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+button {
+    background: transparent;
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+    padding: 10px 20px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.3s;
+}
+
+button:hover {
+    background: var(--neon-green);
+    color: #000;
+    box-shadow: 0 0 15px var(--neon-green);
+}
+
+/* Success Form Overlay */
+#success-overlay {
+    display: none;
+    /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+}
+
+.success-content {
+    background: #000;
+    border: 2px solid var(--neon-green);
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
+    max-width: 500px;
+    width: 90%;
+}
+
+.success-content h1 {
+    color: var(--neon-green);
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px var(--neon-green);
+}
+
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: #888;
+}
+
+.form-group input {
+    width: 100%;
+}

@@ -4,3 +4,12 @@ __pycache__/
 venv/
 .DS_Store
 candidates.db
+.env
+credentials.json
+server/firebase_credentials.json
+.env
+server/.env
+*.json
+server/firebase_credentials.json
+credentials.json
+server/credentials.json
