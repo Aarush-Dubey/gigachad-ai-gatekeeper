@@ -15,6 +15,7 @@ from firebase_admin import auth
 # Local imports
 from key_manager import KeyManager
 from database import DatabaseManager
+from env_checker import check_env  # <--- Import Validator
 
 # Force load env from server/ and root/
 server_env = os.path.join(os.path.dirname(__file__), '.env')
@@ -181,6 +182,24 @@ def root_status():
     """
     Public Status Dashboard (The Matrix Style)
     """
+    missing_vars = check_env()
+    
+    # Check Status
+    core_status = "ONLINE" if not missing_vars else "DEGRADED (CONFIG ERROR)"
+    core_color = "ok" if not missing_vars else "err"
+    
+    # Missing Vars HTML
+    missing_html = ""
+    if missing_vars:
+        missing_list = "".join([f"<li>{var}</li>" for var in missing_vars])
+        missing_html = f"""
+        <div class="err" style="margin-top:20px; border: 1px solid red; padding: 10px;">
+            <h3>⚠️ MISSING CONFIGURATION:</h3>
+            <ul>{missing_list}</ul>
+            <p>Please add these to Render Environment Variables.</p>
+        </div>
+        """
+
     status_html = f"""
     <html>
     <head>
@@ -198,12 +217,13 @@ def root_status():
     <body>
         <h1>SYSTEM DIAGNOSTICS_</h1>
         <div class="grid">
-            <div>CORE SYSTEM:</div>      <div class="ok">[ONLINE]</div>
+            <div>CORE SYSTEM:</div>      <div class="{core_color}">[{core_status}]</div>
             <div>AI MODEL:</div>        <div class="ok">[{MODEL_NAME}]</div>
             <div>EMERGENCY MODE:</div>  <div class="{ 'err' if EMERGENCY_MODE else 'ok' }">[{ 'ACTIVE (BYPASS)' if EMERGENCY_MODE else 'STANDBY' }]</div>
             <div>FIREBASE:</div>        <div class="ok">[CONNECTED]</div>
             <div>SERVER TIME:</div>     <div>[{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC]</div>
         </div>
+        {missing_html}
         <br>
         <p><i>"I am the one who knocks."</i></p>
     </body>
