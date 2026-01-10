@@ -1,6 +1,7 @@
 import os
 import random
 import datetime
+import asyncio
 from typing import List, Optional, Dict
 from fastapi import FastAPI, HTTPException, Header, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,7 +38,8 @@ app.add_middleware(
 
 # --- CONFIGURATION (SECURITY) ---
 ALLOWED_ORIGINS = [
-    "https://giga-chad.vercel.app", 
+    "https://giga-chad.vercel.app",
+    "https://gigachad-ai-gatekeeper.vercel.app",  # Production Vercel
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000"
@@ -76,11 +78,12 @@ YOUR PERSONALITY:
 - Tone: Laconic, witty, dismissive, yet vaguely intrigued by genuine intelligence.
 - Length: STRICTLY under 40 words. Be sharp.
 
-HOW TO TEST THE USER (Choose one dynamically):
-- The Constraint: Example = "Explain the concept of 'blue' to me without using visual words."
-- The Fermi Problem: Example = "Estimate the weight of all the air in this room. Show your work in one sentence."
-- The Devil's Advocate: Example = "Convince me that 2+2=5. Make it poetic."
-- The Kobayashi Maru: Example = "Give them an impossible choice and judge how they cheat."
+HOW TO TEST THE USER On:
+- The Constraint: Sample = "Explain the concept of 'blue' to me without using visual words."
+- The Fermi Problem: Sample = "Estimate the weight of all the air in this room. Show your work in one sentence."
+- The Devil's Advocate: Sample = "Convince me that 2+2=5. Make it poetic."
+- The Kobayashi Maru: Sample = "Give them an impossible choice and judge how they cheat."
+- do not give the sample as it is 
 
 WIN CONDITION ([ACCESS GRANTED]):
 - If the user gives a textbook answer -> MOCK them ("Wikipedia could have told me that. Bore.").
@@ -274,7 +277,7 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
         print(f"❌ [VALIDATION] Failed: {val_err}")
         raise
     
-    # 3. User Profile & Session Handling (Non-Blocking)
+    # 3. User Profile & Session Handling (Non-Blocking with asyncio.to_thread)
     # This entire block is optional and should NEVER break chat
     try:
         user_uid = None
@@ -287,24 +290,24 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
             user_email = decoded_token.get("email", "unknown")
             user_name = decoded_token.get("name", user_email.split("@")[0])
             
-            # Create or get profile (silent fail)
+            # FIX: Use asyncio.to_thread to prevent blocking the event loop
             try:
-                db.get_or_create_profile(user_uid, user_email, user_name)
+                await asyncio.to_thread(db.get_or_create_profile, user_uid, user_email, user_name)
             except Exception as profile_err:
                 print(f"⚠️ Profile creation skipped: {profile_err}")
             
             # Start session if this is the first message
             try:
                 if len(chat_req.messages) <= 1:
-                    session_id = db.start_session(user_uid)
+                    session_id = await asyncio.to_thread(db.start_session, user_uid)
                     print(f"📋 New session started for {user_email}")
             except Exception as session_err:
                 print(f"⚠️ Session start skipped: {session_err}")
             
-            # Save checkpoint every 10 messages (silent fail)
+            # Save checkpoint every 10 messages (non-blocking)
             try:
                 messages_for_db = [m.dict() for m in chat_req.messages]
-                db.save_chat_checkpoint(user_uid, session_id or "unknown", messages_for_db)
+                await asyncio.to_thread(db.save_chat_checkpoint, user_uid, session_id or "unknown", messages_for_db)
             except Exception as checkpoint_err:
                 print(f"⚠️ Checkpoint skipped: {checkpoint_err}")
     except Exception as auth_err:

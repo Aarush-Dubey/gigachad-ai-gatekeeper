@@ -35,14 +35,23 @@ class KeyManager:
         available_keys = [k for k in self.keys if k not in self.failed_keys]
 
         if not available_keys:
-            # 🚨 EMERGENCY JAILBREAK 🚨
-            # If all keys are down, we assume the oldest failure has likely recovered enough for one shot.
-            print("⚡ FORCE RESURRECTION: All keys tired. Re-using the oldest one.")
+            # 🚨 SMART JAILBREAK: Check if oldest failure is ready for retry
+            if not self.failed_keys:
+                print("💀 CRITICAL: No keys available at all.")
+                return None
+                
+            oldest_key, ban_time = min(self.failed_keys.items(), key=lambda x: x[1])
+            time_in_jail = current_time - ban_time
             
-            # Sort failed keys by time (oldest failure first) and pick it
-            oldest_failed_key = min(self.failed_keys, key=self.failed_keys.get)
-            del self.failed_keys[oldest_failed_key]
-            return oldest_failed_key
+            # If the oldest key has been banned for less than 10 seconds, DO NOT resurrect.
+            # It will just fail again and cause an infinite loop.
+            if time_in_jail < 10: 
+                print(f"💀 SYSTEM OVERLOAD: All {len(self.keys)} keys exhausted. Oldest banned {time_in_jail:.1f}s ago. Waiting...")
+                return None  # Main loop will handle this as 503 Service Unavailable
+
+            print(f"⚡ FORCE RESURRECTION: Re-trying oldest key (banned {time_in_jail:.1f}s ago).")
+            del self.failed_keys[oldest_key]
+            return oldest_key
 
         # 3. ROBIN HOOD: Random selection distributes load better than sequential
         return random.choice(available_keys)

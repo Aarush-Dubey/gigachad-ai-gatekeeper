@@ -135,8 +135,10 @@ class DatabaseManager:
             logger.critical(f"FATAL: Firestore Write Failed! {e}")
             return False
 
-        # Sync to Sheets (background)
-        threading.Thread(target=self._sync_one, args=(user_data, verified_email, timestamp)).start()
+        # DISABLED: Real-time Sheets sync causes rate limiting under high load
+        # Data is secured in Firestore. Use /admin/sync for batch Sheets sync.
+        # threading.Thread(target=self._sync_one, args=(user_data, verified_email, timestamp)).start()
+        logger.info(f"✅ Data secured in Firestore. Pending batch sync to Sheets.")
         return True
 
     def _sync_one(self, user_data, email, timestamp):

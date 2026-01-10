@@ -324,6 +324,8 @@ body {
     text-align: center;
     max-width: 600px;
     padding: 20px;
+    overflow-y: auto;
+    max-height: 90vh;
 }
 
 .glitch-text {
@@ -372,6 +374,38 @@ body {
     background: #a8b3cf;
     color: #000;
     box-shadow: 0px 0px 20px rgba(168, 179, 207, 0.6);
+}
+
+/* Mobile Responsiveness for Void Overlay */
+@media (max-width: 768px) {
+    .glitch-text {
+        font-size: 1.5rem;
+        letter-spacing: 2px;
+        margin-bottom: 20px;
+    }
+
+    .mystery-poem {
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
+    .content-wrapper {
+        padding: 15px;
+        max-height: 85vh;
+    }
+
+    .void-button {
+        margin-top: 30px;
+        padding: 12px 30px;
+        font-size: 0.9rem;
+        position: relative;
+        z-index: 10000;
+    }
+
+    .final-line {
+        margin-top: 15px;
+        font-size: 0.85rem;
+    }
 }
 
 @keyframes breathe {
