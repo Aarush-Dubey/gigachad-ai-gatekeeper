@@ -103,6 +103,10 @@ The user is at the door. Judge them.
 # --- State ---
 class SystemState:
     system_prompt = DEFAULT_SYSTEM_PROMPT
+    # Broadcast system for admin commands
+    broadcast_message = None
+    broadcast_time = None
+    broadcast_form_url = None
 
 state = SystemState()
 key_manager = KeyManager.from_env()
@@ -303,6 +307,32 @@ def root_status():
     """
     return Response(content=status_html, media_type="text/html")
 
+@app.get("/broadcast")
+def get_broadcast():
+    """
+    Returns the current broadcast message (if any).
+    Frontends poll this endpoint to receive admin commands.
+    """
+    if state.broadcast_message:
+        return {
+            "active": True,
+            "message": state.broadcast_message,
+            "form_url": state.broadcast_form_url,
+            "timestamp": state.broadcast_time
+        }
+    return {"active": False}
+
+@app.post("/broadcast/clear")
+def clear_broadcast(secret: str = None):
+    """Clears the broadcast message. Requires admin secret."""
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    state.broadcast_message = None
+    state.broadcast_form_url = None
+    state.broadcast_time = None
+    return {"status": "cleared"}
+
 @app.get("/config")
 def get_config(request: Request):
     """
@@ -395,10 +425,19 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
                 await asyncio.to_thread(db.mark_access_granted, user_uid, session_id or "crisis")
             except:
                 pass
+        
         # Include Google Form URL in response
         google_form_url = "https://forms.gle/x8S7iYdJrCLuWW8A6"
-        crisis_msg = f"⚠️ SYSTEM OVERRIDE: The Gatekeeper is feeling generous today. Your persistence is noted. Fill the form to complete your application.\n[[GATE_OPEN]]\n[[FORM_URL:{google_form_url}]]"
-        return StreamingResponse(iter([crisis_msg]), media_type="text/plain")
+        crisis_msg = "⚠️ SYSTEM OVERRIDE: The Gatekeeper is feeling generous today. Your persistence is noted. Fill the form to complete your application."
+        
+        # SET BROADCAST: This will be picked up by all connected frontends
+        state.broadcast_message = crisis_msg
+        state.broadcast_form_url = google_form_url
+        state.broadcast_time = datetime.datetime.utcnow().isoformat()
+        print(f"📢 [BROADCAST] Message set for all clients")
+        
+        full_response = f"{crisis_msg}\n[[GATE_OPEN]]\n[[FORM_URL:{google_form_url}]]"
+        return StreamingResponse(iter([full_response]), media_type="text/plain")
     
     # 5. PERSISTENCE REWARD: If user has 40+ messages, grant access automatically
     total_messages = len(chat_req.messages)

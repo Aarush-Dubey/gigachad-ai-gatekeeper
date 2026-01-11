@@ -1,6 +1,14 @@
 🔥 KeyManager Loaded: 40 keys found.
 INFO:database:Firebase Firestore Initialized.
-INFO:     Started server process [89873]
+INFO:     Started server process [90375]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53947 - "GET /config HTTP/1.1" 200 OK
+📨 [CHAT] Received 1 messages
+🚨 [CRISIS] Admin override triggered by None
+📢 [BROADCAST] Message set for all clients
+INFO:     127.0.0.1:53979 - "POST /chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54055 - "GET /check-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54102 - "GET /admin/logs HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:54103 - "GET /admin/logs HTTP/1.1" 422 Unprocessable Content

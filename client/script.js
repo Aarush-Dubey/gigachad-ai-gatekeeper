@@ -9,11 +9,117 @@ const API_URL = (window.location.hostname === 'localhost' || window.location.hos
 
 let currentUserToken = null;
 let messages = []; // Chat History State
+let lastBroadcastTime = null; // To avoid duplicate broadcast handling
+let broadcastPollingInterval = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     console.log("✅ [INIT] DOM Fully Loaded.");
     initApp();
+
+    // Start polling for broadcasts
+    startBroadcastPolling();
 });
+
+// --- Broadcast Polling System ---
+function startBroadcastPolling() {
+    console.log("📡 [BROADCAST] Starting poll...");
+    broadcastPollingInterval = setInterval(checkForBroadcast, 3000); // Every 3 seconds
+}
+
+async function checkForBroadcast() {
+    try {
+        const res = await fetch(`${API_URL}/broadcast`);
+        const data = await res.json();
+
+        if (data.active && data.timestamp !== lastBroadcastTime) {
+            console.log("📢 [BROADCAST] Received:", data);
+            lastBroadcastTime = data.timestamp;
+
+            // Show the broadcast message
+            handleBroadcast(data.message, data.form_url);
+        }
+    } catch (err) {
+        // Silent fail - broadcast polling is non-critical
+    }
+}
+
+function handleBroadcast(message, formUrl) {
+    console.log("📢 [BROADCAST] Taking over page...");
+
+    // FULL PAGE TAKEOVER - Replace entire body with form page
+    document.body.innerHTML = `
+        <div style="
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+            color: #00ff41;
+            padding: 40px;
+            text-align: center;
+        ">
+            <h1 style="
+                font-size: 2.5rem;
+                text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41;
+                margin-bottom: 30px;
+                animation: pulse 2s infinite;
+            ">⚠️ SYSTEM OVERRIDE</h1>
+            
+            <div style="
+                background: rgba(0, 255, 65, 0.1);
+                border: 2px solid #00ff41;
+                padding: 30px 50px;
+                border-radius: 10px;
+                max-width: 600px;
+                box-shadow: 0 0 30px rgba(0, 255, 65, 0.3);
+            ">
+                <p style="font-size: 1.3rem; margin-bottom: 30px; line-height: 1.6;">
+                    ${message}
+                </p>
+                
+                <a href="${formUrl || '#'}" target="_blank" style="
+                    display: inline-block;
+                    background: #00ff41;
+                    color: #000;
+                    padding: 15px 40px;
+                    font-size: 1.2rem;
+                    font-weight: bold;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    transition: all 0.3s;
+                    box-shadow: 0 0 20px #00ff41;
+                ">
+                    📋 FILL APPLICATION FORM
+                </a>
+            </div>
+            
+            <p style="margin-top: 40px; color: #666; font-size: 0.9rem;">
+                "The Gate is Open. Don't keep us waiting."
+            </p>
+        </div>
+        
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+
+    // Stop polling after takeover
+    if (broadcastPollingInterval) {
+        clearInterval(broadcastPollingInterval);
+    }
+
+    // Also open the form automatically after 2 seconds
+    if (formUrl) {
+        setTimeout(() => {
+            window.open(formUrl, '_blank');
+        }, 2000);
+    }
+}
 
 // --- Initialization ---
 async function initApp() {
