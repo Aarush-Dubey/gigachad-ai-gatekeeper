@@ -183,38 +183,84 @@ class DatabaseManager:
             logger.error(f"Sync failed for {email}: {e}")
 
     def sync_pending(self) -> str:
-        """Retries syncing all unsynced records."""
+        """
+        Batch sync all unsynced SUBMITTED users to Google Sheets.
+        Call via /admin/sync endpoint or Cron job.
+        """
         if not self.db:
             return "Firestore unavailable."
 
         try:
-            docs = self.db.collection("candidates").where("synced", "==", False).stream()
+            # Only sync users who: 1) Submitted form, 2) Not yet synced
+            docs = self.db.collection("users").where("form_submitted", "==", True).where("synced_to_sheets", "==", False).limit(50).stream()
             count = 0
             sheet = self._get_google_sheet()
             
+            if not sheet:
+                return "Google Sheet unavailable."
+            
+            rows_to_add = []
+            doc_refs = []
+            
             for doc in docs:
                 data = doc.to_dict()
-                if sheet:
-                    try:
-                        sheet.append_row([data.get("name"), data.get("email"), data.get("student_id"), data.get("timestamp")])
-                        doc.reference.update({"synced": True})
-                        count += 1
-                    except Exception as ex:
-                        logger.error(f"Retry failed for {data.get('email')}: {ex}")
+                submission = data.get("submission", {})
+                
+                # Prepare row for Sheets
+                preference = submission.get("preference", [])
+                if isinstance(preference, list):
+                    preference = ", ".join(preference)
+                
+                row = [
+                    data.get("name", ""),
+                    data.get("email", ""),
+                    submission.get("student_id", ""),
+                    preference,
+                    submission.get("skills", ""),
+                    submission.get("commitments", ""),
+                    submission.get("notes", ""),
+                    str(data.get("submitted_at", ""))
+                ]
+                rows_to_add.append(row)
+                doc_refs.append(doc.reference)
             
-            return f"Synced {count} records."
+            # Batch write to Sheets (one API call)
+            if rows_to_add:
+                sheet.append_rows(rows_to_add)
+                
+                # Mark as synced in Firestore
+                for ref in doc_refs:
+                    ref.update({"synced_to_sheets": True})
+                    count += 1
+            
+            logger.info(f"✅ Synced {count} records to Google Sheets.")
+            return f"Synced {count} records to Sheets."
         except Exception as e:
+            logger.error(f"Sync error: {e}")
             return f"Error: {e}"
 
     def get_all_stats(self) -> Dict:
+        """Get submission statistics from users collection."""
         if not self.db: return {"error": "No DB"}
         try:
-            all_docs = list(self.db.collection("candidates").stream())
-            total = len(all_docs)
-            synced = sum(1 for d in all_docs if d.to_dict().get("synced"))
-            return {"total": total, "synced": synced, "pending": total - synced}
-        except:
-            return {"status": "error"}
+            # Count total users
+            all_users = list(self.db.collection("users").stream())
+            total = len(all_users)
+            
+            # Count by status
+            submitted = sum(1 for d in all_users if d.to_dict().get("form_submitted"))
+            granted = sum(1 for d in all_users if d.to_dict().get("access_granted"))
+            synced = sum(1 for d in all_users if d.to_dict().get("synced_to_sheets"))
+            
+            return {
+                "total_users": total,
+                "access_granted": granted,
+                "form_submitted": submitted,
+                "synced_to_sheets": synced,
+                "pending_sync": submitted - synced
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     # ========== USER PROFILE & CHAT CHECKPOINT SYSTEM ==========
 
