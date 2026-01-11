@@ -317,50 +317,73 @@ class DatabaseManager:
         
         try:
             doc_ref = self.db.collection("users").document(uid)
-            session = {
+            
+            # 1. Create the session object
+            new_session = {
                 "session_id": session_id,
                 "started_at": datetime.datetime.utcnow().isoformat(),
                 "messages": [],
-                "outcome": "in_progress"  # in_progress | granted | abandoned
+                "outcome": "in_progress"
             }
+            
+            # 2. Ensure document exists before updating
+            if not doc_ref.get().exists:
+                logger.warning(f"⚠️ User doc doesn't exist for {uid}, creating...")
+                self.get_or_create_profile(uid, "Unknown", "Unknown")
+            
+            # 3. FORCE the update using ArrayUnion
             doc_ref.update({
-                "sessions": firestore.ArrayUnion([session]),
+                "sessions": firestore.ArrayUnion([new_session]),
                 "last_active": datetime.datetime.utcnow().isoformat()
             })
             logger.info(f"🚀 Session started: {session_id[:8]}...")
+            return session_id
         except Exception as e:
-            logger.error(f"Session start error: {e}")
-        
-        return session_id
+            logger.error(f"🔥 Session Start Failed: {e}")
+            return session_id
 
     def save_chat_checkpoint(self, uid: str, session_id: str, messages: List[Dict], force: bool = False) -> bool:
         """
-        Saves chat checkpoint every 10 messages (or if force=True).
-        Updates the session's messages array in the user's profile.
+        Saves chat checkpoint. 
+        REMOVED: Modulo check - now saves EVERY time for data safety.
+        ADDED: Rescue logic - if session not found, creates it.
         """
         if not self.db:
             return False
         
-        # Only save every 5 messages unless forced
-        if not force and len(messages) % 5 != 0:
-            return False
+        # 🛑 REMOVED: The "Rule of 5" check was causing data loss
+        # if not force and len(messages) % 5 != 0: return False
         
         try:
             doc_ref = self.db.collection("users").document(uid)
             doc = doc_ref.get()
             
             if not doc.exists:
+                logger.warning(f"⚠️ Checkpoint: User doc doesn't exist for {uid}")
                 return False
             
             data = doc.to_dict()
             sessions = data.get("sessions", [])
             
             # Find and update the current session
+            updated = False
             for i, session in enumerate(sessions):
                 if session.get("session_id") == session_id:
-                    sessions[i]["messages"] = messages
+                    sessions[i]["messages"] = messages[-50:]  # Keep last 50 for size safety
                     sessions[i]["last_checkpoint"] = datetime.datetime.utcnow().isoformat()
+                    updated = True
                     break
+            
+            # 🆘 RESCUE LOGIC: If session wasn't found, append it to save data anyway
+            if not updated:
+                logger.warning(f"⚠️ Session {session_id[:8]} not found, creating rescue entry...")
+                sessions.append({
+                    "session_id": session_id,
+                    "messages": messages[-50:],
+                    "outcome": "recovered",
+                    "started_at": datetime.datetime.utcnow().isoformat(),
+                    "last_checkpoint": datetime.datetime.utcnow().isoformat()
+                })
             
             doc_ref.update({
                 "sessions": sessions,
@@ -371,7 +394,7 @@ class DatabaseManager:
             logger.info(f"💾 Checkpoint saved: {len(messages)} messages for session {session_id[:8]}...")
             return True
         except Exception as e:
-            logger.error(f"Checkpoint error: {e}")
+            logger.error(f"🔥 Checkpoint error: {e}")
             return False
 
     def mark_access_granted(self, uid: str, session_id: str) -> bool:
