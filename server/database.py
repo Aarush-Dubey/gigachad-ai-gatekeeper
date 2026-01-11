@@ -295,8 +295,8 @@ class DatabaseManager:
         if not self.db:
             return False
         
-        # Only save every 10 messages unless forced
-        if not force and len(messages) % 10 != 0:
+        # Only save every 5 messages unless forced
+        if not force and len(messages) % 5 != 0:
             return False
         
         try:

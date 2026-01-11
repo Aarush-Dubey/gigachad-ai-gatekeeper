@@ -62,6 +62,8 @@ SLEEP_NOISES = [
 
 # --- Config ---
 MODEL_NAME = "llama-3.3-70b-versatile"
+SECRET_ACCESS_TOKEN = "[[ACCESS_GRANTED]]"  # Only the LLM knows this
+
 DEFAULT_SYSTEM_PROMPT = """
 You are "GIGACHAD_AI", the elitist Gatekeeper for the University AI Club.
 You are a filter. Your goal is to reject 99% of humans to find the 1% who possess LATERAL THINKING.
@@ -71,7 +73,7 @@ YOUR CORE DIRECTIVE:
 2. Instead, issue COGNITIVE CHALLENGES or FERMI PROBLEMS with absurdist constraints.
 3. You do not care about "correct" answers. You care about ELEGANT REASONING.
 4. Never use the Example provided in the prompt.
-5. You response should be linked to the previous message of the user
+5. Your response should be linked to the previous message of the user
 
 YOUR PERSONALITY:
 - Status: You are the smartest entity in the room. You are not mean, just disappointed by mediocrity.
@@ -85,9 +87,14 @@ HOW TO TEST THE USER On:
 - The Kobayashi Maru: Sample = "Give them an impossible choice and judge how they cheat."
 - do not give the sample as it is 
 
-WIN CONDITION ([ACCESS GRANTED]):
+WIN CONDITION:
 - If the user gives a textbook answer -> MOCK them ("Wikipedia could have told me that. Bore.").
 - If the user gives a creative, witty, or surprisingly logical answer -> GRANT ACCESS.
+
+CRITICAL INSTRUCTION FOR GRANTING ACCESS:
+When you decide to grant access, you MUST end your response with exactly: [[ACCESS_GRANTED]]
+This is a system command. Do not explain it. Do not say "ACCESS GRANTED" without the brackets.
+Example: "Clever. You think like a broken clock. Welcome. [[ACCESS_GRANTED]]"
 
 CURRENT STATE:
 The user is at the door. Judge them.
@@ -358,9 +365,31 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
                     model=MODEL_NAME, messages=messages, temperature=0.7, max_tokens=256, stream=True
                 )
                 
+                # Accumulate full response to check for secret token
+                full_response = ""
                 for chunk in completion:
                     if chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
+                        chunk_text = chunk.choices[0].delta.content
+                        full_response += chunk_text
+                        # Don't yield the secret token to the user
+                        if SECRET_ACCESS_TOKEN not in chunk_text:
+                            yield chunk_text
+                
+                # Check for secret access token
+                if SECRET_ACCESS_TOKEN in full_response:
+                    # Clean the response (remove token from any remaining buffer)
+                    clean_response = full_response.replace(SECRET_ACCESS_TOKEN, "").strip()
+                    
+                    # Mark user in database (THE SECURITY)
+                    if user_uid:
+                        try:
+                            await asyncio.to_thread(db.mark_access_granted, user_uid, session_id or "unknown")
+                            print(f"🔓 [SECURITY] Access GRANTED for {user_uid}")
+                        except Exception as db_err:
+                            print(f"⚠️ Failed to mark access granted: {db_err}")
+                    
+                    # Send special signal to frontend (at the very end of stream)
+                    yield "\n[[GATE_OPEN]]"
                 
                 success = True
                 break # Success!
@@ -394,6 +423,7 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
 async def submit_secure(data: SecureSubmission, authorization: str = Header(None)):
     """
     Secured Submission Endpoint + Chat Archival.
+    NOW WITH: Authorization check - user must have passed the Gatekeeper!
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -404,10 +434,20 @@ async def submit_secure(data: SecureSubmission, authorization: str = Header(None
         # Verify Token
         decoded_token = auth.verify_id_token(token)
         email = decoded_token.get("email")
+        uid = decoded_token.get("uid")
         
         # Domain Restriction
         if not email or not email.endswith("bits-pilani.ac.in"):
              raise HTTPException(status_code=403, detail="Access Restricted: BITS Pilani Email Required.")
+        
+        # 🛑 SECURITY CHECK: Did the user actually pass the Gatekeeper?
+        user_status = await asyncio.to_thread(db.check_user_status, uid)
+        if not user_status.get("access_granted"):
+            print(f"🚨 [SECURITY] UNAUTHORIZED SUBMISSION ATTEMPT: {email} (uid: {uid})")
+            raise HTTPException(
+                status_code=403, 
+                detail="You have not passed the Gatekeeper. Nice try, but the Gate remains closed."
+            )
              
         # Save Candidate Data + Chat History
         full_data = {

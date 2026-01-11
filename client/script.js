@@ -217,26 +217,38 @@ async function sendMessage() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         aiMsgDiv.innerText = "";
+        let accessGranted = false;
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value);
             fullResponse += chunk;
-            aiMsgDiv.innerText = fullResponse + "▌"; // Cursor effect
+
+            // Check for server's secure signal (NOT user-typeable text)
+            if (chunk.includes("[[GATE_OPEN]]")) {
+                accessGranted = true;
+                // Remove the signal from display
+                fullResponse = fullResponse.replace("[[GATE_OPEN]]", "").trim();
+            }
+
+            // Display (without the signal)
+            const displayText = fullResponse.replace("[[GATE_OPEN]]", "").trim();
+            aiMsgDiv.innerText = displayText + "▌"; // Cursor effect
 
             // Auto Scroll
             const history = document.getElementById('chat-history');
             history.scrollTop = history.scrollHeight;
         }
 
-        aiMsgDiv.innerText = fullResponse;
-        messages.push({ role: 'assistant', content: fullResponse });
+        // Clean final display
+        const cleanResponse = fullResponse.replace("[[GATE_OPEN]]", "").trim();
+        aiMsgDiv.innerText = cleanResponse;
+        messages.push({ role: 'assistant', content: cleanResponse });
 
-        // Check for "Accepted" keyword to trigger success (Case Insensitive)
-        const upperResponse = fullResponse.toUpperCase();
-        if (upperResponse.includes("ACCESS GRANTED") || upperResponse.includes("ACCEPTED") || upperResponse.includes("WELCOME")) {
-            console.log("🎉 [SUCCESS] Access Granted detected. Triggering form...");
+        // 🔐 SECURE CHECK: Only trust the server's signal
+        if (accessGranted) {
+            console.log("🔓 [SECURITY] Server confirmed ACCESS GRANTED. Triggering form...");
             setTimeout(triggerSuccess, 2000);
         }
 
