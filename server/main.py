@@ -482,9 +482,26 @@ async def submit_secure(data: SecureSubmission, authorization: str = Header(None
 def admin_health():
     return {"db_connected": db.check_connection(), "stats": db.get_all_stats()}
 
+@app.get("/admin/sync")
+async def admin_sync(secret: str = None):
+    """
+    Triggers batch sync of submitted users to Google Sheets.
+    Secured by ADMIN_SECRET. Use via Cron Job or manual trigger.
+    """
+    # Simple auth to prevent random triggers
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin secret")
+    
+    # Run sync (could use BackgroundTasks for larger loads)
+    result = await asyncio.to_thread(db.sync_pending)
+    return {"status": "completed", "result": result}
+
+# Also support POST for backwards compatibility
 @app.post("/admin/sync")
-def admin_sync():
-    return {"result": db.sync_pending()}
+async def admin_sync_post(secret: str = None):
+    """POST version of /admin/sync for backwards compatibility."""
+    return await admin_sync(secret)
 
 @app.get("/check-status")
 async def check_user_status(authorization: Optional[str] = Header(None)):

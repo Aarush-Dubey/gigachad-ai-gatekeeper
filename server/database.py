@@ -427,7 +427,7 @@ class DatabaseManager:
     def mark_form_submitted(self, uid: str) -> bool:
         """
         Marks the user's form as submitted.
-        Called after successful form submission.
+        NOTE: This is a FALLBACK function. Primary submission handled by save_candidate_authenticated.
         """
         if not self.db:
             return False
@@ -437,8 +437,8 @@ class DatabaseManager:
             doc_ref.update({
                 "form_submitted": True,
                 "status": "submitted",
-                "submitted_at": datetime.datetime.utcnow().isoformat(),
-                "last_active": datetime.datetime.utcnow().isoformat()
+                "submitted_at": firestore.SERVER_TIMESTAMP,  # Consistent with save_candidate_authenticated
+                "last_active": firestore.SERVER_TIMESTAMP
             })
             logger.info(f"📝 Form marked as submitted for user: {uid}")
             return True
