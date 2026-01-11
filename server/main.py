@@ -192,13 +192,31 @@ def view_logs(secret: str):
 @app.get("/", response_class=Response)
 def root_status():
     """
-    Public Status Dashboard (The Matrix Style)
+    Public Status Dashboard (The Matrix Style) + Live Logs
     """
     missing_vars = check_env()
     
     # Check Status
     core_status = "ONLINE" if not missing_vars else "DEGRADED (CONFIG ERROR)"
     core_color = "ok" if not missing_vars else "err"
+    
+    # Read last 50 lines of backend.log
+    log_content = ""
+    try:
+        import os.path
+        log_path = os.path.join(os.path.dirname(__file__), "backend.log")
+        if os.path.exists(log_path):
+            with open(log_path, 'r') as f:
+                lines = f.readlines()
+                log_content = "".join(lines[-50:])  # Last 50 lines
+        else:
+            log_content = "[No logs yet]"
+    except Exception as e:
+        log_content = f"[Error reading logs: {e}]"
+    
+    # Escape HTML in logs
+    import html
+    log_content_escaped = html.escape(log_content)
     
     # Missing Vars HTML
     missing_html = ""
@@ -219,12 +237,49 @@ def root_status():
         <style>
             body {{ background-color: #0d1117; color: #00ff00; font-family: monospace; padding: 40px; }}
             h1 {{ border-bottom: 2px solid #00ff00; padding-bottom: 10px; }}
+            h2 {{ border-bottom: 1px solid #555; padding-bottom: 5px; margin-top: 30px; }}
             .status-item {{ margin: 15px 0; font-size: 1.2rem; }}
             .ok {{ color: #00ff00; }}
             .warn {{ color: #ffaa00; }}
             .err {{ color: #ff0000; }}
             .grid {{ display: grid; grid-template-columns: 200px 1fr; gap: 10px; }}
+            .log-panel {{
+                background: #000;
+                border: 1px solid #333;
+                padding: 15px;
+                margin-top: 20px;
+                height: 400px;
+                overflow-y: auto;
+                font-size: 0.85rem;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }}
+            .log-line {{ color: #888; }}
+            .log-line:hover {{ color: #00ff00; background: #111; }}
+            .refresh-btn {{
+                background: #222;
+                color: #00ff00;
+                border: 1px solid #00ff00;
+                padding: 8px 16px;
+                cursor: pointer;
+                font-family: monospace;
+                margin-top: 10px;
+            }}
+            .refresh-btn:hover {{ background: #00ff00; color: #000; }}
         </style>
+        <script>
+            function refreshLogs() {{
+                fetch('/admin/logs')
+                    .then(r => r.json())
+                    .then(data => {{
+                        document.getElementById('log-content').innerText = data.logs;
+                        var panel = document.getElementById('log-panel');
+                        panel.scrollTop = panel.scrollHeight;
+                    }});
+            }}
+            // Auto-refresh every 3 seconds
+            setInterval(refreshLogs, 3000);
+        </script>
     </head>
     <body>
         <h1>SYSTEM DIAGNOSTICS_</h1>
@@ -236,6 +291,11 @@ def root_status():
             <div>SERVER TIME:</div>     <div>[{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC]</div>
         </div>
         {missing_html}
+        
+        <h2>📋 LIVE LOGS (Last 50 Lines)</h2>
+        <button class="refresh-btn" onclick="refreshLogs()">🔄 Refresh Logs</button>
+        <div id="log-panel" class="log-panel"><pre id="log-content">{log_content_escaped}</pre></div>
+        
         <br>
         <p><i>"I am the one who knocks."</i></p>
     </body>
@@ -505,6 +565,22 @@ async def submit_secure(data: SecureSubmission, authorization: str = Header(None
     except Exception as e:
         print(f"Auth Error: {e}")
         raise HTTPException(status_code=401, detail="Invalid authentication")
+
+@app.get("/admin/logs")
+def admin_logs():
+    """Returns last 50 lines of backend.log for live log viewer."""
+    try:
+        import os.path
+        log_path = os.path.join(os.path.dirname(__file__), "backend.log")
+        if os.path.exists(log_path):
+            with open(log_path, 'r') as f:
+                lines = f.readlines()
+                log_content = "".join(lines[-50:])
+        else:
+            log_content = "[No logs yet]"
+        return {"logs": log_content}
+    except Exception as e:
+        return {"logs": f"[Error: {e}]"}
 
 @app.get("/admin/health")
 def admin_health():
