@@ -86,13 +86,21 @@ class DatabaseManager:
         if not verified_email.endswith("bits-pilani.ac.in"):
              return False
 
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         logger.info(f"Saving submission to user profile: {user_data.get('name')} ({verified_email})")
         
         try:
             # If we have UID, update the user's profile directly
             if uid:
                 doc_ref = self.db.collection("users").document(uid)
+                
+                # CHECK: Prevent duplicate submission (security)
+                existing_doc = doc_ref.get()
+                if existing_doc.exists:
+                    existing_data = existing_doc.to_dict()
+                    if existing_data.get("form_submitted") == True:
+                        logger.warning(f"⚠️ User {verified_email} already submitted. Ignoring duplicate.")
+                        return True  # Return success but don't overwrite
+                
                 doc_ref.update({
                     "submission": {
                         "student_id": user_data.get("student_id"),
@@ -100,9 +108,9 @@ class DatabaseManager:
                         "skills": user_data.get("skills"),
                         "commitments": user_data.get("commitments"),
                         "notes": user_data.get("notes"),
-                        "submitted_at": timestamp
                     },
-                    "final_chat_history": chat_history,
+                    "submitted_at": firestore.SERVER_TIMESTAMP,  # Use Firestore timestamp
+                    "final_chat_history": chat_history[-50:] if len(chat_history) > 50 else chat_history,  # Truncate
                     "form_submitted": True,
                     "status": "submitted",
                     "synced_to_sheets": False
@@ -113,6 +121,13 @@ class DatabaseManager:
                 import hashlib
                 uid_fallback = hashlib.md5(verified_email.encode()).hexdigest()
                 doc_ref = self.db.collection("users").document(uid_fallback)
+                
+                # CHECK: Prevent duplicate submission
+                existing_doc = doc_ref.get()
+                if existing_doc.exists and existing_doc.to_dict().get("form_submitted") == True:
+                    logger.warning(f"⚠️ User {verified_email} already submitted (fallback). Ignoring.")
+                    return True
+                
                 doc_ref.set({
                     "email": verified_email,
                     "name": user_data.get("name"),
@@ -122,9 +137,9 @@ class DatabaseManager:
                         "skills": user_data.get("skills"),
                         "commitments": user_data.get("commitments"),
                         "notes": user_data.get("notes"),
-                        "submitted_at": timestamp
                     },
-                    "final_chat_history": chat_history,
+                    "submitted_at": firestore.SERVER_TIMESTAMP,
+                    "final_chat_history": chat_history[-50:] if len(chat_history) > 50 else chat_history,
                     "form_submitted": True,
                     "status": "submitted",
                     "synced_to_sheets": False
@@ -137,7 +152,6 @@ class DatabaseManager:
 
         # DISABLED: Real-time Sheets sync causes rate limiting under high load
         # Data is secured in Firestore. Use /admin/sync for batch Sheets sync.
-        # threading.Thread(target=self._sync_one, args=(user_data, verified_email, timestamp)).start()
         logger.info(f"✅ Data secured in Firestore. Pending batch sync to Sheets.")
         return True
 

@@ -617,6 +617,8 @@ button:hover {
     box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
     max-width: 500px;
     width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .success-content h1 {
@@ -639,4 +641,38 @@ button:hover {
 
 .form-group input {
     width: 100%;
+}
+
+/* Mobile Form Responsiveness */
+@media (max-width: 768px) {
+    .success-content {
+        padding: 20px;
+        max-height: 85vh;
+        width: 95%;
+    }
+
+    .success-content h1 {
+        font-size: 1.3rem;
+        margin-bottom: 10px;
+    }
+
+    .form-group {
+        margin-bottom: 10px;
+    }
+
+    .form-group label {
+        font-size: 0.8em;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 8px;
+        font-size: 14px;
+    }
+
+    #submission-form button {
+        padding: 12px;
+        font-size: 14px;
+    }
 }

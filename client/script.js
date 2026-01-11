@@ -279,18 +279,41 @@ async function handleFormSubmit(e) {
     btn.innerText = "SECURING...";
     btn.disabled = true;
 
-    // Collect Data (Multi-Select)
+    // 1. Validate Student ID
+    const studentId = document.getElementById('student-id').value.trim();
+    if (!/^20\d{2}[A-Z0-9]{4}\d{4}[A-Z]?$/i.test(studentId)) {
+        alert("❌ Invalid BITS ID format. Example: 2024A7PS1234P");
+        btn.innerText = "SECURE CREDENTIALS";
+        btn.disabled = false;
+        return;
+    }
+
+    // 2. Collect Preferences as Array (not string)
     const prefSelect = document.getElementById('preference');
-    const selectedPrefs = Array.from(prefSelect.selectedOptions).map(o => o.value).join(", ");
+    const selectedPrefs = Array.from(prefSelect.selectedOptions).map(o => o.value);
+
+    if (selectedPrefs.length === 0) {
+        alert("❌ Please select at least one preference.");
+        btn.innerText = "SECURE CREDENTIALS";
+        btn.disabled = false;
+        return;
+    }
+
+    // 3. Get Name with fallback
+    const user = firebase.auth().currentUser;
+    const userName = user.displayName || user.email.split('@')[0];
+
+    // 4. Truncate chat history to last 50 messages (avoid 1MB Firestore limit)
+    const truncatedHistory = messages.slice(-50);
 
     const data = {
-        name: firebase.auth().currentUser.displayName,
-        student_id: document.getElementById('student-id').value,
-        preference: selectedPrefs,
+        name: userName,
+        student_id: studentId,
+        preference: selectedPrefs,  // Now an array
         skills: document.getElementById('skills').value,
         commitments: document.getElementById('commitments').value,
         notes: document.getElementById('notes').value,
-        chat_history: messages
+        chat_history: truncatedHistory
     };
 
     try {
