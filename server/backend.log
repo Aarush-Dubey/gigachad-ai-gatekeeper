@@ -1,6 +1,6 @@
 🔥 KeyManager Loaded: 40 keys found.
 INFO:database:Firebase Firestore Initialized.
-INFO:     Started server process [89131]
+INFO:     Started server process [89873]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

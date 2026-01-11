@@ -395,7 +395,9 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
                 await asyncio.to_thread(db.mark_access_granted, user_uid, session_id or "crisis")
             except:
                 pass
-        crisis_msg = "⚠️ SYSTEM OVERRIDE: The Gatekeeper is feeling generous today. Your persistence is noted. [[ACCESS_GRANTED]]\n[[GATE_OPEN]]"
+        # Include Google Form URL in response
+        google_form_url = "https://forms.gle/x8S7iYdJrCLuWW8A6"
+        crisis_msg = f"⚠️ SYSTEM OVERRIDE: The Gatekeeper is feeling generous today. Your persistence is noted. Fill the form to complete your application.\n[[GATE_OPEN]]\n[[FORM_URL:{google_form_url}]]"
         return StreamingResponse(iter([crisis_msg]), media_type="text/plain")
     
     # 5. PERSISTENCE REWARD: If user has 40+ messages, grant access automatically
@@ -408,7 +410,8 @@ async def chat_endpoint(chat_req: ChatRequest, request: Request, authorization: 
                 await asyncio.to_thread(db.mark_access_granted, user_uid, session_id or "persistence")
             except:
                 pass
-        persistence_msg = "I admire your persistence. You've proven your dedication. Welcome. [[ACCESS_GRANTED]]\n[[GATE_OPEN]]"
+        google_form_url = "https://forms.gle/x8S7iYdJrCLuWW8A6"
+        persistence_msg = f"I admire your persistence. You've proven your dedication. Welcome. Fill the form to complete your application.\n[[GATE_OPEN]]\n[[FORM_URL:{google_form_url}]]"
         return StreamingResponse(iter([persistence_msg]), media_type="text/plain")
     
     # 5. Construct Context with Sliding Window

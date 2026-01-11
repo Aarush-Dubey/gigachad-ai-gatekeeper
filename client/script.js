@@ -241,15 +241,40 @@ async function sendMessage() {
             history.scrollTop = history.scrollHeight;
         }
 
-        // Clean final display
-        const cleanResponse = fullResponse.replace("[[GATE_OPEN]]", "").trim();
+        // Check for Google Form URL signal
+        let googleFormUrl = null;
+        const formUrlMatch = fullResponse.match(/\[\[FORM_URL:(.*?)\]\]/);
+        if (formUrlMatch) {
+            googleFormUrl = formUrlMatch[1];
+        }
+
+        // Clean final display (remove all control signals)
+        let cleanResponse = fullResponse
+            .replace("[[GATE_OPEN]]", "")
+            .replace(/\[\[FORM_URL:.*?\]\]/g, "")
+            .replace("[[ACCESS_GRANTED]]", "")
+            .trim();
         aiMsgDiv.innerText = cleanResponse;
         messages.push({ role: 'assistant', content: cleanResponse });
 
         // 🔐 SECURE CHECK: Only trust the server's signal
         if (accessGranted) {
-            console.log("🔓 [SECURITY] Server confirmed ACCESS GRANTED. Triggering form...");
-            setTimeout(triggerSuccess, 2000);
+            console.log("🔓 [SECURITY] Server confirmed ACCESS GRANTED.");
+
+            // If Google Form URL provided, redirect to it
+            if (googleFormUrl) {
+                console.log("📋 [REDIRECT] Opening Google Form:", googleFormUrl);
+                setTimeout(() => {
+                    // Show a nice message before redirect
+                    aiMsgDiv.innerHTML = cleanResponse + "<br><br>🎉 <strong>Redirecting to application form...</strong>";
+                    setTimeout(() => {
+                        window.open(googleFormUrl, '_blank');
+                    }, 1500);
+                }, 1000);
+            } else {
+                // Use built-in form as fallback
+                setTimeout(triggerSuccess, 2000);
+            }
         }
 
     } catch (error) {
